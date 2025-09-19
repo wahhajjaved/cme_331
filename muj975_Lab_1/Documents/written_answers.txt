@@ -1,0 +1,18 @@
+2a) The toggle_led() function is for playing around with the LEDs. It isn't part of the lab requirements.
+
+   The gpiodata_register_test() function is for answering c.vi. It is commented out in main() but can be uncommented
+   to confirm that my understanding of the data register is correct. The blinking order is rgb instead of rbg to
+   differentiate it from question 1.
+
+   ticks_to_count in delay() function was calibrated using the stop watch on my phone
+
+2c) #define GPIO_PORTF_DATA_R (*((volatile unsigned long *)0x400583FC))	 // p.662
+    #define GPIO_PORTF_DIR_R (*((volatile unsigned long *)0x40058400))	 // p.663
+    #define GPIO_PORTF_AFSEL_R (*((volatile unsigned long *)0x40058420)) // p.671
+    #define GPIO_PORTF_DEN_R (*((volatile unsigned long *)0x4005851C))	 // p.682
+    #define GPIO_PORTF_PUR_R (*((volatile unsigned long *)0x40058510))	 // p.677
+
+
+
+
+
