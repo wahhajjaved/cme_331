@@ -1,0 +1,47 @@
+1. #define GPIO_PORTF_DATA_R (*((volatile unsigned long *)0x400253FC))	 
+
+2. GPIO_PORTF_DATA_R |= 0x0E;
+
+3. #define GPIO_PORTA_AFSEL_R (*((volatile unsigned long *)0x40004420))
+
+4. GPIO_PORTA_AFSEL_R |= 0x03;
+
+5. 
+
+6.  0x4003.2000
+
+7. 0x4000.E000
+
+8. 0x4000.A000
+
+9. 0x4002.8008
+
+10. 0x4000.552C
+
+11.
+
+start		end			Description
+00			00			Revision
+01			01			Scratch
+02			02			enable and reset
+03			04			MAC address
+05			05			Ethernet frame length
+06			06			Inter-packet gap length
+07			38			Configuration
+39			70			Counters
+71			134			Multicast addresses
+135			166			PHY configuration
+
+start		end			Description
+0x0			0x00		Revision
+0x01		0x01		Scratch
+0x02		0x02		enable and reset
+0x03		0x04		MAC address
+0x05		0x05		Ethernet frame length
+0x06		0x06		Inter-packet gap length
+0x07		0x26		Configuration
+0x29		0x46		Counters
+0x47		0x86		Multicast addresses
+0x87		0x9F		Reserved
+0xA0		0xC8		PHY configuration
+0xC9		0xFF		Reserved
