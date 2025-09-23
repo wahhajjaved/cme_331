@@ -28,8 +28,8 @@ muj975
 #define TIMER0_TAILR_R (*((volatile unsigned long *) (0x40030000 + 0x028 ))) // p. 756 interval load
 #define TIMER0_TAPR_R (*((volatile unsigned long *) (0x40030000 + 0x038 ))) // p. 760 mistake in lab manual. TAPS should be TAPR
 #define TIMER0_TAV_R (*((volatile unsigned long *) (0x40030000 + 0x050 ))) // p. 766 Timer value
-#define TIMER0_RIS_R (*((volatile unsigned long *) (0x40030000 + 0x01C ))) // p. 748 Timer value
-#define TIMER0_ICR_R (*((volatile unsigned long *) (0x40030000 + 0x024 ))) // p. 754 Timer value
+#define TIMER0_RIS_R (*((volatile unsigned long *) (0x40030000 + 0x01C ))) // p. 748 Interrupt values
+#define TIMER0_ICR_R (*((volatile unsigned long *) (0x40030000 + 0x024 ))) // p. 754 Interrupt clear
 
 
 #define CLOCK_FREQUENCY_MS 16000 //16E6 ticks per second to 16000 ticks per ms
@@ -48,6 +48,8 @@ void toggle_led(void);
 char led_colour = 'r';
 int led_on = 0; //0 = off, 1 = on
 
+int sw1_pressed = 0; // 0 = not pressed, 1 = pressed. sw1 pressed in the last 5 ms
+int sw1_pressed_start_time = -1; //-1 = sw1 not yet pressed
 
 //***************** Main *********************//
 
@@ -68,26 +70,7 @@ int main(void) {
 
 //***************** Function Definitions *********************//
 
-//Checks if a timer has timed out. Returns 1 if timed out
-int timed_out(void) {
-	int status = TIMER0_RIS_R & 0x1;
-	return status == 1;
-}
 
-/* Run when the timer times out. Updates led_oon and resets the timer and clears the interrupt*/
-void time_out_handler(void) {
-	if (led_on == 0) {
-		led_on = 1;
-		set_led(led_colour);
-	}
-	else {
-		led_on = 0;
-		set_led('o');
-	}
-
-	TIMER0_ICR_R |= 0x1; //writing a 1 to the TATOCINT to clear the timer interrupt
-	TIMER0_TAILR_R = LED_TIMER_VALUE;
-}
 
 void init_gpio(void) {
 	volatile unsigned long delay_clk;
@@ -139,7 +122,26 @@ void init_gpio(void) {
 
 }
 
+//Checks if a timer has timed out. Returns 1 if timed out
+int timed_out(void) {
+	int status = TIMER0_RIS_R & 0x1;
+	return status == 1;
+}
 
+/* Run when the timer times out. Updates led_oon and resets the timer and clears the interrupt*/
+void time_out_handler(void) {
+	if (led_on == 0) {
+		led_on = 1;
+		set_led(led_colour);
+	}
+	else {
+		led_on = 0;
+		set_led('o');
+	}
+
+	TIMER0_ICR_R |= 0x1; //writing a 1 to the TATOCINT to clear the timer interrupt
+	TIMER0_TAILR_R = LED_TIMER_VALUE;
+}
 
 
 /*
@@ -184,8 +186,13 @@ void set_led(char state) {
 }
 
 
+/*Updates sw1_state global variable once in a given interval to debounce the button*/
+void update_sw1_state(void) {
+}
+
 void change_led_colour(void) {
 	int sw1_state = (GPIO_PORTF_DATA_R >> 4) & 0x01;
+
 
 	//PF4 will go to ground when the switch is pressed
 	if(sw1_state == 0) {
