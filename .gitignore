@@ -3,3 +3,6 @@ dvt
 .tempFiles
 .metadata
 RemoteSystemsTempFiles
+.obj
+.out
+.d
