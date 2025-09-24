@@ -20,6 +20,7 @@ muj975
 #define GPIO_PORTF3_DATA_R (*((volatile unsigned long *)0x40025020))	 // p.654 and 662
 
 /*** Timers ***/
+//Timer 0 for LED control
 #define SYSCTL_RCGCTIMER_R (*((volatile unsigned long *) (0x400FE000 + 0x604) )) //p. 338
 #define TIMER0_CTL_R (*((volatile unsigned long *) (0x40030000 + 0x00C ))) // p. 737 control
 #define TIMER0_CFG_R (*((volatile unsigned long *) 0x40030000 )) // p. 727 configuration
@@ -31,15 +32,28 @@ muj975
 #define TIMER0_RIS_R (*((volatile unsigned long *) (0x40030000 + 0x01C ))) // p. 748 Interrupt values
 #define TIMER0_ICR_R (*((volatile unsigned long *) (0x40030000 + 0x024 ))) // p. 754 Interrupt clear
 
+//Timer 1 for SW1 debounce
+#define TIMER1_CTL_R (*((volatile unsigned long *) (0x40031000 + 0x00C ))) // p. 737 control
+#define TIMER1_CFG_R (*((volatile unsigned long *) 0x40031000 )) // p. 727 configuration
+#define TIMER1_TAMR_R (*((volatile unsigned long *) (0x40031000 + 0x004 ))) // p. 729 prescale
+#define TIMER1_IMR_R (*((volatile unsigned long *) (0x40031000 + 0x018 ))) // p. 745 interrupt mask
+#define TIMER1_TAILR_R (*((volatile unsigned long *) (0x40031000 + 0x028 ))) // p. 756 interval load
+#define TIMER1_TAPR_R (*((volatile unsigned long *) (0x40031000 + 0x038 ))) // p. 760 mistake in lab manual. TAPS should be TAPR
+#define TIMER1_TAV_R (*((volatile unsigned long *) (0x40031000 + 0x050 ))) // p. 766 Timer value
+#define TIMER1_RIS_R (*((volatile unsigned long *) (0x40031000 + 0x01C ))) // p. 748 Interrupt values
+#define TIMER1_ICR_R (*((volatile unsigned long *) (0x40031000 + 0x024 ))) // p. 754 Interrupt clear
+
+
 
 #define CLOCK_FREQUENCY_MS 16000 //16E6 ticks per second to 16000 ticks per ms
-#define LED_TIMER_VALUE CLOCK_FREQUENCY_MS * 1000 //blink LEDs at 1Hz
+#define LED_TIMER_VALUE CLOCK_FREQUENCY_MS * 500 //blink LEDs at 1Hz
+#define SW1_TIMER_VALUE CLOCK_FREQUENCY_MS * 5 //5ms clock for debouncing
 
 
 //***************** Function Declarations *********************//
-int timed_out(void);
-void time_out_handler(void);
 void init_gpio(void);
+void led_time_out_handler(void);
+void check_sw1(void);
 void set_led(char state);
 void change_led_colour(void);
 void toggle_led(void);
@@ -49,7 +63,6 @@ char led_colour = 'r';
 int led_on = 0; //0 = off, 1 = on
 
 int sw1_pressed = 0; // 0 = not pressed, 1 = pressed. sw1 pressed in the last 5 ms
-int sw1_pressed_start_time = -1; //-1 = sw1 not yet pressed
 
 //***************** Main *********************//
 
@@ -57,25 +70,22 @@ int main(void) {
 	/*** Code here runs only once ***/
 	init_gpio();
 
-	time_out_handler();
+	led_time_out_handler();
 
 	/*** Code here repeats forever ***/
 	while (1) {
-		change_led_colour();
-
-		if (timed_out())
-			time_out_handler();
+		check_sw1();
+		if (TIMER0_RIS_R & 0x1)
+			led_time_out_handler();
 	}
 }
 
 //***************** Function Definitions *********************//
 
-
-
 void init_gpio(void) {
 	volatile unsigned long delay_clk;
 	SYSCTL_RCGC2_R |= 0x00000020; // Enable Clock Gating for PortF, p.340
-	SYSCTL_RCGCTIMER_R |= 0x1; // Enable Clock Gating for PortF, p.338
+	SYSCTL_RCGCTIMER_R |= 0x3; // Enable Clock Gating for Timers 0 and 1, p.338
 	delay_clk = SYSCTL_RCGC2_R;	  // Dummy operation to wait a few clock cycles
 								  // See p.227 for more information.
 
@@ -97,7 +107,7 @@ void init_gpio(void) {
 	GPIO_PORTF_PUR_R |= 0x10; //set the pull up resistor on PF4 (SW1)
 
 
-	/* Timer initialization. Page 722 */
+	/* Timer 0 initialization. Page 722 */
 	//1. Clear TAEN bit in TIMER0_CTL_R
 	TIMER0_CTL_R &= ~0x0;
 
@@ -119,17 +129,20 @@ void init_gpio(void) {
 	//7. Enable the timer
 	TIMER0_CTL_R |= 0x1;
 
+	/* Timer 1 initialization. Page 722 */
+	TIMER1_CTL_R &= ~0x0;
+	TIMER1_CFG_R  = 0x0;
+	TIMER1_TAMR_R |= 0x12; //0x2 in bit field 1:0 for preriodic mode and 0x1 in bit field 4 to count up. 0001 0010
+	TIMER1_TAILR_R = 4294967296 - 1 ;
+	TIMER1_IMR_R = 0x0;
+	TIMER1_TAPR_R = 0x0;
+	TIMER1_CTL_R |= 0x1;
 
 }
 
-//Checks if a timer has timed out. Returns 1 if timed out
-int timed_out(void) {
-	int status = TIMER0_RIS_R & 0x1;
-	return status == 1;
-}
 
 /* Run when the timer times out. Updates led_oon and resets the timer and clears the interrupt*/
-void time_out_handler(void) {
+void led_time_out_handler(void) {
 	if (led_on == 0) {
 		led_on = 1;
 		set_led(led_colour);
@@ -141,6 +154,55 @@ void time_out_handler(void) {
 
 	TIMER0_ICR_R |= 0x1; //writing a 1 to the TATOCINT to clear the timer interrupt
 	TIMER0_TAILR_R = LED_TIMER_VALUE;
+}
+
+/*Detects SW1 state while debouncing it*/
+void check_sw1(void) {
+	/*
+	Debouncing Algorithm
+	The first push of the button is considered a press
+	Until the button is released, all signals from the button are ignored
+	After the first button release is detected, a timer is started
+	Until the timer times out, all signals from the button are ignored
+	*/
+
+	//If the timer hasn't timed out yet, then ignore the button
+	if (TIMER1_TAV_R < SW1_TIMER_VALUE)
+		return;
+
+	int sw1_state = (GPIO_PORTF_DATA_R >> 4) & 0x01;
+
+	// Initial state. Button is not pressed.
+	//When the button is pressed, the button press is recorded and the SW1 handler is run
+	if (sw1_pressed == 0 && sw1_state == 0) {
+		sw1_pressed = 1;
+		change_led_colour();
+		return;
+	}
+
+	//When the button has been previously pressed, need to detect that it was released
+	//When the button is released, the timer is restarted so all signals from the
+	//button can be ignored until it times out
+	if (sw1_pressed == 1 && sw1_state == 1) {
+		sw1_pressed = 0;
+		TIMER1_TAV_R = 0;
+		return;
+	}
+
+}
+
+
+/*Moves the led to the next colour in rbg order*/
+void change_led_colour(void) {
+	if(led_colour == 'r')
+		led_colour = 'b';
+	else if(led_colour == 'b')
+		led_colour = 'g';
+	else
+		led_colour = 'r';
+
+	if (led_on == 1)
+		set_led(led_colour);
 }
 
 
@@ -186,26 +248,6 @@ void set_led(char state) {
 }
 
 
-/*Updates sw1_state global variable once in a given interval to debounce the button*/
-void update_sw1_state(void) {
-}
 
-void change_led_colour(void) {
-	int sw1_state = (GPIO_PORTF_DATA_R >> 4) & 0x01;
-
-
-	//PF4 will go to ground when the switch is pressed
-	if(sw1_state == 0) {
-		if(led_colour == 'r')
-			led_colour = 'b';
-		else if(led_colour == 'b')
-			led_colour = 'g';
-		else
-			led_colour = 'r';
-	}
-
-	if (led_on == 1)
-		set_led(led_colour);
-}
 
 
