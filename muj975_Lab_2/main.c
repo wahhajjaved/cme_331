@@ -43,17 +43,30 @@ muj975
 #define TIMER1_RIS_R (*((volatile unsigned long *) (0x40031000 + 0x01C ))) // p. 748 Interrupt values
 #define TIMER1_ICR_R (*((volatile unsigned long *) (0x40031000 + 0x024 ))) // p. 754 Interrupt clear
 
+//Timer 2 for SW2 debounce
+#define TIMER2_CTL_R (*((volatile unsigned long *) (0x40032000 + 0x00C ))) // p. 737 control
+#define TIMER2_CFG_R (*((volatile unsigned long *) 0x40032000 )) // p. 727 configuration
+#define TIMER2_TAMR_R (*((volatile unsigned long *) (0x40032000 + 0x004 ))) // p. 729 prescale
+#define TIMER2_IMR_R (*((volatile unsigned long *) (0x40032000 + 0x018 ))) // p. 745 interrupt mask
+#define TIMER2_TAILR_R (*((volatile unsigned long *) (0x40032000 + 0x028 ))) // p. 756 interval load
+#define TIMER2_TAPR_R (*((volatile unsigned long *) (0x40032000 + 0x038 ))) // p. 760 mistake in lab manual. TAPS should be TAPR
+#define TIMER2_TAV_R (*((volatile unsigned long *) (0x40032000 + 0x050 ))) // p. 766 Timer value
+#define TIMER2_RIS_R (*((volatile unsigned long *) (0x40032000 + 0x01C ))) // p. 748 Interrupt values
+#define TIMER2_ICR_R (*((volatile unsigned long *) (0x40032000 + 0x024 ))) // p. 754 Interrupt clear
+
+
 
 
 #define CLOCK_FREQUENCY_MS 16000 //16E6 ticks per second to 16000 ticks per ms
 #define LED_TIMER_VALUE CLOCK_FREQUENCY_MS * 500 //blink LEDs at 1Hz
-#define SW1_TIMER_VALUE CLOCK_FREQUENCY_MS * 5 //5ms clock for debouncing
+#define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 5 //5ms clock for debouncing
 
 
 //***************** Function Declarations *********************//
 void init_gpio(void);
 void led_time_out_handler(void);
 void check_sw1(void);
+void check_sw2(void);
 void set_led(char state);
 void change_led_colour(void);
 void toggle_led(void);
@@ -63,6 +76,9 @@ char led_colour = 'r';
 int led_on = 0; //0 = off, 1 = on
 
 int sw1_pressed = 0; // 0 = not pressed, 1 = pressed. sw1 pressed in the last 5 ms
+int sw2_pressed = 0; // 0 = not pressed, 1 = pressed. sw2 pressed in the last 5 ms
+
+int led_blinking = 1; //0 means led is not blinking, 1 means led is on
 
 //***************** Main *********************//
 
@@ -75,7 +91,10 @@ int main(void) {
 	/*** Code here repeats forever ***/
 	while (1) {
 		check_sw1();
-		if (TIMER0_RIS_R & 0x1)
+		check_sw2();
+		if(led_blinking == 0)
+			set_led(led_colour);
+		else if (TIMER0_RIS_R & 0x1)
 			led_time_out_handler();
 	}
 }
@@ -85,7 +104,7 @@ int main(void) {
 void init_gpio(void) {
 	volatile unsigned long delay_clk;
 	SYSCTL_RCGC2_R |= 0x00000020; // Enable Clock Gating for PortF, p.340
-	SYSCTL_RCGCTIMER_R |= 0x3; // Enable Clock Gating for Timers 0 and 1, p.338
+	SYSCTL_RCGCTIMER_R |= 0x6F; // Enable Clock Gating for Timers 0, 1, and 2, p.338
 	delay_clk = SYSCTL_RCGC2_R;	  // Dummy operation to wait a few clock cycles
 								  // See p.227 for more information.
 
@@ -138,6 +157,15 @@ void init_gpio(void) {
 	TIMER1_TAPR_R = 0x0;
 	TIMER1_CTL_R |= 0x1;
 
+	/* Timer 2 initialization. Page 722 */
+	TIMER2_CTL_R &= ~0x0;
+	TIMER2_CFG_R  = 0x0;
+	TIMER2_TAMR_R |= 0x12; //0x2 in bit field 1:0 for preriodic mode and 0x1 in bit field 4 to count up. 0001 0010
+	TIMER2_TAILR_R = 4294967296 - 1 ;
+	TIMER2_IMR_R = 0x0;
+	TIMER2_TAPR_R = 0x0;
+	TIMER2_CTL_R |= 0x1;
+
 
 	/*** SW2 Initialization. SW0 is connected to PF0 ***/
 	//1. Unlock PF0 by writing 0x4C4F434B to GPIO_PORTF_LOCK_R (p.684)
@@ -181,13 +209,10 @@ void check_sw1(void) {
 	*/
 
 	//If the timer hasn't timed out yet, then ignore the button
-	if (TIMER1_TAV_R < SW1_TIMER_VALUE)
+	if (TIMER1_TAV_R < SW_TIMER_VALUE)
 		return;
 
 	int sw1_state = (GPIO_PORTF_DATA_R >> 4) & 0x01;
-
-	/*Read from SW2 for debugging*/
-	sw1_state = GPIO_PORTF_DATA_R & 0x01;
 
 	// Initial state. Button is not pressed.
 	//When the button is pressed, the button press is recorded and the SW1 handler is run
@@ -205,7 +230,35 @@ void check_sw1(void) {
 		TIMER1_TAV_R = 0;
 		return;
 	}
+}
 
+/* Detects SW2 state while debouncing it
+	Same code as check_sw1(), except for sw2
+*/
+void check_sw2(void) {
+
+	if (TIMER2_TAV_R < SW_TIMER_VALUE)
+		return;
+
+	int sw2_state = GPIO_PORTF_DATA_R & 0x01;
+
+	if (sw2_pressed == 0 && sw2_state == 0) {
+		sw2_pressed = 1;
+		if (led_blinking == 0)
+			led_blinking = 1;
+		else
+			led_blinking = 0;
+
+		return;
+	}
+
+	if (sw2_pressed == 1 && sw2_state == 1) {
+		sw2_pressed = 0;
+		TIMER2_TAV_R = 0;
+		return;
+	}
+
+	return;
 }
 
 
