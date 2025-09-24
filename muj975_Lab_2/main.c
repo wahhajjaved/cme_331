@@ -14,10 +14,10 @@ muj975
 #define GPIO_PORTF_AFSEL_R (*((volatile unsigned long *)0x40025420)) // p.671
 #define GPIO_PORTF_DEN_R (*((volatile unsigned long *)0x4002551C))	 // p.682
 #define GPIO_PORTF_PUR_R (*((volatile unsigned long *)0x40025510))	 // p.677
+#define GPIO_PORTF_LOCK_R (*((volatile unsigned long *)0x40025520))	 // p.684
+#define GPIO_PORTF_CR_R (*((volatile unsigned long *)0x40025524))	 // p.685
 
-#define GPIO_PORTF1_DATA_R (*((volatile unsigned long *)0x40025008))	 // p.654 and 662
-#define GPIO_PORTF2_DATA_R (*((volatile unsigned long *)0x40025010))	 // p.654 and 662
-#define GPIO_PORTF3_DATA_R (*((volatile unsigned long *)0x40025020))	 // p.654 and 662
+
 
 /*** Timers ***/
 //Timer 0 for LED control
@@ -138,6 +138,20 @@ void init_gpio(void) {
 	TIMER1_TAPR_R = 0x0;
 	TIMER1_CTL_R |= 0x1;
 
+
+	/*** SW2 Initialization. SW0 is connected to PF0 ***/
+	//1. Unlock PF0 by writing 0x4C4F434B to GPIO_PORTF_LOCK_R (p.684)
+	GPIO_PORTF_LOCK_R = 0x4C4F434B;
+
+	//2. Enable writes to PF0 registers by writing 1 to bits 7:0 of GPIO_PORTF_CR_R (p.685)
+	GPIO_PORTF_CR_R |= 0x0F;
+
+	//3. Configure PF0 same as PF0
+	GPIO_PORTF_DEN_R |= 0x01; //set PF0 (SW2) to digital
+	GPIO_PORTF_DIR_R &= ~0x01; //set PF0 (SW2) direction to input
+	GPIO_PORTF_AFSEL_R &= ~0x01; //disable PF0 (SW2) alternate functions
+	GPIO_PORTF_PUR_R |= 0x01; //set the pull up resistor on PF0 (SW2)
+
 }
 
 
@@ -171,6 +185,9 @@ void check_sw1(void) {
 		return;
 
 	int sw1_state = (GPIO_PORTF_DATA_R >> 4) & 0x01;
+
+	/*Read from SW2 for debugging*/
+	sw1_state = GPIO_PORTF_DATA_R & 0x01;
 
 	// Initial state. Button is not pressed.
 	//When the button is pressed, the button press is recorded and the SW1 handler is run
