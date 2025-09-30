@@ -108,6 +108,8 @@ void init_gpio(void) {
 	delay_clk = SYSCTL_RCGC2_R;	  // Dummy operation to wait a few clock cycles
 								  // See p.227 for more information.
 
+	(*((volatile unsigned long *)0x4002551C))
+
 	GPIO_PORTF_DEN_R |= 0x02; //set PF1 (LED_R) to digital
 	GPIO_PORTF_DIR_R |= 0x02; //set PF1 (LED_R) direction to output
 	GPIO_PORTF_AFSEL_R &= ~0x02; //disable PF1 (LED_R) alternate functions
