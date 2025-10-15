@@ -8,6 +8,14 @@ muj975
 #define SYSCTL_RCGC2_R (*((volatile unsigned long *)0x400FE108))
 // General-Purpose Input/Outputs (GPIOs) p.649
 
+/**** NVIC ****/
+#define NVIC_EN0_R (*((volatile unsigned long *)0xE000E100))
+#define NVIC_EN1_R (*((volatile unsigned long *)0xE000E104))
+#define NVIC_EN2_R (*((volatile unsigned long *)0xE000E108))
+#define NVIC_EN3_R (*((volatile unsigned long *)0xE000E10C))
+#define NVIC_EN4_R (*((volatile unsigned long *)0xE000E110))
+
+
 /**** Port F ****/
 #define GPIO_PORTF_DATA_R (*((volatile unsigned long *)0x400253FC))	 // p.662
 #define GPIO_PORTF_DIR_R (*((volatile unsigned long *)0x40025400))	 // p.663
@@ -64,12 +72,14 @@ muj975
 
 //***************** Function Declarations *********************//
 void init_gpio(void);
+void init_interrupts(void);
 void led_time_out_handler(void);
 void check_sw1(void);
 void check_sw2(void);
 void set_led(char state);
 void change_led_colour(void);
 void toggle_led(void);
+void timer0_handler(void);
 
 //***************** Global Variables *********************//
 char led_colour = 'r';
@@ -78,24 +88,26 @@ int led_on = 0; //0 = off, 1 = on
 int sw1_pressed = 0; // 0 = not pressed, 1 = pressed. sw1 pressed in the last 5 ms
 int sw2_pressed = 0; // 0 = not pressed, 1 = pressed. sw2 pressed in the last 5 ms
 
-int led_blinking = 1; //0 means led is not blinking, 1 means led is on
+int led_blinking = 1; //0 means led is not blinking, 1 means led is blinking
 
 //***************** Main *********************//
 
 int main(void) {
 	/*** Code here runs only once ***/
 	init_gpio();
+	init_interrupts();
 
-	led_time_out_handler();
+	led_on = 1;
+	set_led(led_colour);
 
 	/*** Code here repeats forever ***/
 	while (1) {
-		check_sw1();
-		check_sw2();
-		if(led_blinking == 0)
-			set_led(led_colour);
-		else if (TIMER0_RIS_R & 0x1)
-			led_time_out_handler();
+		// check_sw1();
+		// check_sw2();
+		// if(led_blinking == 0)
+		// 	set_led(led_colour);
+		// else if (TIMER0_RIS_R & 0x1)
+		// 	led_time_out_handler();
 	}
 }
 
@@ -107,8 +119,6 @@ void init_gpio(void) {
 	SYSCTL_RCGCTIMER_R |= 0x6F; // Enable Clock Gating for Timers 0, 1, and 2, p.338
 	delay_clk = SYSCTL_RCGC2_R;	  // Dummy operation to wait a few clock cycles
 								  // See p.227 for more information.
-
-	(*((volatile unsigned long *)0x4002551C))
 
 	GPIO_PORTF_DEN_R |= 0x02; //set PF1 (LED_R) to digital
 	GPIO_PORTF_DIR_R |= 0x02; //set PF1 (LED_R) direction to output
@@ -135,11 +145,12 @@ void init_gpio(void) {
 	//2. Set TIMER0_CFG_R to 0x00000000
 	TIMER0_CFG_R  = 0x0;
 
-	//3. Write 0x2 into TnMR filed of TIMER0_TAMR_R
-	TIMER0_TAMR_R |= 0x2;
+	//3. Write 0x2 into TnMR field of TIMER0_TAMR_R for periodic timer p.732
+	// Write 0x1 into TACDIR field of TIMER0_TAMR_R for counting up p.731
+	TIMER0_TAMR_R |= 0x12;
 
 	//4. Load start value into TIMER0_TAILR_R
-	TIMER0_TAILR_R = 4294967296 - 1 ;
+	TIMER0_TAILR_R = LED_TIMER_VALUE ;
 
 	//5. Disable interrupts using TIMER0_IMR_R
 	TIMER0_IMR_R = 0x0;
@@ -184,9 +195,25 @@ void init_gpio(void) {
 
 }
 
+void init_interrupts(void) {
 
-/* Run when the timer times out. Updates led_oon and resets the timer and clears the interrupt*/
-void led_time_out_handler(void) {
+	/* Timer 0A: Vector number = 35, interrupt number = 19, vector address = 0x0000 008C
+		To enable interrupts for timer 0A, bit 19 of EN0 needs to be set
+	*/
+	NVIC_EN0_R |= 0x1 << 19;
+	TIMER0_IMR_R |= 0x1; //Enable time out interrupt mask p.747
+	TIMER0_ICR_R |= 0x1; //write 1 to the TATOCINT to clear the timer interrupt p.755
+
+	// NVIC_EN1_R
+	// NVIC_EN2_R
+	// NVIC_EN3_R
+	// NVIC_EN4_R
+
+}
+
+
+/* ISR for timer 0. Flashes the LED */
+void timer0_handler(void) {
 	if (led_on == 0) {
 		led_on = 1;
 		set_led(led_colour);
@@ -197,7 +224,7 @@ void led_time_out_handler(void) {
 	}
 
 	TIMER0_ICR_R |= 0x1; //writing a 1 to the TATOCINT to clear the timer interrupt
-	TIMER0_TAILR_R = LED_TIMER_VALUE;
+
 }
 
 /*Detects SW1 state while debouncing it*/
