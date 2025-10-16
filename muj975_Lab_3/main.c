@@ -16,6 +16,20 @@ muj975
 #define NVIC_EN4_R (*((volatile unsigned long *)0xE000E110))
 
 
+/**** Port A ****/
+#define GPIO_PORTA_DATA_R (*((volatile unsigned long *)0x400043FC))	 // p.662
+#define GPIO_PORTA_DIR_R (*((volatile unsigned long *)0x40004400))	 // p.663
+#define GPIO_PORTA_AFSEL_R (*((volatile unsigned long *)0x40004420)) // p.671
+#define GPIO_PORTA_DEN_R (*((volatile unsigned long *)0x4000451C))	 // p.682
+#define GPIO_PORTA_PUR_R (*((volatile unsigned long *)0x40004510))	 // p.677
+
+/**** Port B ****/
+#define GPIO_PORTB_DATA_R (*((volatile unsigned long *)0x400053FC))	 // p.662
+#define GPIO_PORTB_DIR_R (*((volatile unsigned long *)0x40005400))	 // p.663
+#define GPIO_PORTB_AFSEL_R (*((volatile unsigned long *)0x40005420)) // p.671
+#define GPIO_PORTB_DEN_R (*((volatile unsigned long *)0x4000551C))	 // p.682
+#define GPIO_PORTB_PUR_R (*((volatile unsigned long *)0x40005510))	 // p.677
+
 /**** Port F ****/
 #define GPIO_PORTF_DATA_R (*((volatile unsigned long *)0x400253FC))	 // p.662
 #define GPIO_PORTF_DIR_R (*((volatile unsigned long *)0x40025400))	 // p.663
@@ -24,7 +38,6 @@ muj975
 #define GPIO_PORTF_PUR_R (*((volatile unsigned long *)0x40025510))	 // p.677
 #define GPIO_PORTF_LOCK_R (*((volatile unsigned long *)0x40025520))	 // p.684
 #define GPIO_PORTF_CR_R (*((volatile unsigned long *)0x40025524))	 // p.685
-
 
 
 /*** Timers ***/
@@ -64,10 +77,35 @@ muj975
 
 
 
-
 #define CLOCK_FREQUENCY_MS 16000 //16E6 ticks per second to 16000 ticks per ms
 #define LED_TIMER_VALUE CLOCK_FREQUENCY_MS * 500 //blink LEDs at 1Hz
 #define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 5 //5ms clock for debouncing
+
+//look up table for the seven segment display
+#define DISPLAY_SEGMENT_0 0x81
+#define DISPLAY_SEGMENT_1 0xE7
+#define DISPLAY_SEGMENT_2 0x92
+#define DISPLAY_SEGMENT_3 0xC2
+#define DISPLAY_SEGMENT_4 0xE4
+#define DISPLAY_SEGMENT_5 0xC8
+#define DISPLAY_SEGMENT_6 0x8C
+#define DISPLAY_SEGMENT_7 0xE3
+#define DISPLAY_SEGMENT_8 0x80
+#define DISPLAY_SEGMENT_9 0xE0
+#define DISPLAY_SEGMENT_DOT 0x7F
+const int SSD_LUT[] = {
+	DISPLAY_SEGMENT_0,
+	DISPLAY_SEGMENT_1,
+	DISPLAY_SEGMENT_2,
+	DISPLAY_SEGMENT_3,
+	DISPLAY_SEGMENT_4,
+	DISPLAY_SEGMENT_5,
+	DISPLAY_SEGMENT_6,
+	DISPLAY_SEGMENT_7,
+	DISPLAY_SEGMENT_8,
+	DISPLAY_SEGMENT_9,
+	DISPLAY_SEGMENT_DOT
+};
 
 
 //***************** Function Declarations *********************//
@@ -114,11 +152,25 @@ int main(void) {
 //***************** Function Definitions *********************//
 
 void init_gpio(void) {
+	/************* LAB 3 NEW CODE *************/
+
 	volatile unsigned long delay_clk;
-	SYSCTL_RCGC2_R |= 0x00000020; // Enable Clock Gating for PortF, p.340
+	SYSCTL_RCGC2_R |= 0x00000023; // Enable Clock Gating for Port A, B, and F, p.340
 	SYSCTL_RCGCTIMER_R |= 0x6F; // Enable Clock Gating for Timers 0, 1, and 2, p.338
 	delay_clk = SYSCTL_RCGC2_R;	  // Dummy operation to wait a few clock cycles
 								  // See p.227 for more information.
+
+	GPIO_PORTA_DEN_R |= 0xFF; //set PB[7:0] (DATA[7:0] of display) to digital
+	GPIO_PORTA_DIR_R |= 0xFF; //set PB[7:0] (DATA[7:0] of display) direction to output
+	GPIO_PORTA_AFSEL_R &= ~0xFF; //disable PB[7:0] (DATA[7:0] of display) alternate functions
+
+	GPIO_PORTB_DEN_R |= 0xF0; //set PA[7:4] (LE[3:0] of display) to digital
+	GPIO_PORTB_DIR_R |= 0xF0; //set PA[7:4] (LE[3:0] of display) direction to output
+	GPIO_PORTB_AFSEL_R &= ~0xF0; //disable PB[7:0] (DATA[7:0] of display) alternate functions
+
+	/************* END LAB 3 NEW CODE *************/
+
+
 
 	GPIO_PORTF_DEN_R |= 0x02; //set PF1 (LED_R) to digital
 	GPIO_PORTF_DIR_R |= 0x02; //set PF1 (LED_R) direction to output
@@ -192,7 +244,6 @@ void init_gpio(void) {
 	GPIO_PORTF_DIR_R &= ~0x01; //set PF0 (SW2) direction to input
 	GPIO_PORTF_AFSEL_R &= ~0x01; //disable PF0 (SW2) alternate functions
 	GPIO_PORTF_PUR_R |= 0x01; //set the pull up resistor on PF0 (SW2)
-
 }
 
 void init_interrupts(void) {
@@ -212,6 +263,18 @@ void init_interrupts(void) {
 }
 
 
+/*
+Write the given string to the 4 7-segment LED displays.
+output_string must be a null terminated string of size 4 or less
+not counting the null terminator.
+*/
+void write_7_segment_display(char *output_string) {
+	for (int i = 0; i < 4; i++) {
+		//set data for display
+
+	}
+}
+
 /* ISR for timer 0. Flashes the LED */
 void timer0_handler(void) {
 	if (led_on == 0) {
@@ -226,6 +289,7 @@ void timer0_handler(void) {
 	TIMER0_ICR_R |= 0x1; //writing a 1 to the TATOCINT to clear the timer interrupt
 
 }
+
 
 /*Detects SW1 state while debouncing it*/
 void check_sw1(void) {
