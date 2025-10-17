@@ -38,10 +38,10 @@ muj975
 #define GPIO_PORTF_PUR_R (*((volatile unsigned long *)0x40025510))	 // p.677
 #define GPIO_PORTF_LOCK_R (*((volatile unsigned long *)0x40025520))	 // p.684
 #define GPIO_PORTF_CR_R (*((volatile unsigned long *)0x40025524))	 // p.685
-
 #define GPIO_PORTF_IS_R (*((volatile unsigned long *)0x40025404))	 // p.664
 #define GPIO_PORTF_IEV_R (*((volatile unsigned long *)0x4002540C))	 // p.666
 #define GPIO_PORTF_IM_R (*((volatile unsigned long *)0x40025410))	 // p.667
+#define GPIO_PORTF_MIS_R (*((volatile unsigned long *)0x40025418))	 // p.669
 #define GPIO_PORTF_ICR_R (*((volatile unsigned long *)0x4002541C))	 // p.670
 
 
@@ -392,6 +392,31 @@ void sw1_handler(void) {
 	GPIO_PORTF_ICR_R  |= 0x1 << 4; // Clear interrupts p.670
 }
 
+/* ISR for Port F*/
+void port_f_handler(void) {
+	/*	SW1 and SW2 are connected on port F. Only one IRQ is generated
+		per port so this handler must detect which switch was pressed
+		and call the handlers for that swtich
+	*/
+
+	//SW1 connected on PF4 and SW2 on PF0
+	int sw1_pressed = (GPIO_PORTF_MIS_R >> 4) & 0x1;
+	int sw2_pressed = (GPIO_PORTF_MIS_R >> 0) & 0x1;
+
+	if (sw1_pressed) {
+		GPIO_PORTF_IM_R &= ~(0x1 << 4); //Disable interrupts for PF4 p.667
+		TIMER1_CTL_R |= 0x1; // Enable timer 1
+		change_led_colour();
+		GPIO_PORTF_ICR_R |= 0x1 << 4; // Clear interrupts p.670
+	}
+	if (sw2_pressed) {
+		GPIO_PORTF_IM_R  &= ~0x1;
+		TIMER2_CTL_R |= 0x1;
+		printf("SW2 pressed");
+		GPIO_PORTF_ICR_R |= 0x1;
+	}
+}
+
 /* ISR for timer 1. Enables interrupts for SW1. Used for debouncing */
 void timer1_handler(void) {
 	/*	Clear interrupts again before enabling interrupts for the switch
@@ -400,15 +425,15 @@ void timer1_handler(void) {
 		triggered. This leads to spurious button presses. See p.655 for details
 	*/
 	GPIO_PORTF_ICR_R  |= 0x1 << 4;
-
 	GPIO_PORTF_IM_R  |= 0x1 << 4; // Enable interrupts for PF4 p.667
 	TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
 }
 
 /* ISR for timer 2. Enables interrupts for SW2. Used for debouncing */
 void timer2_handler(void) {
-	//GPIO_PORTF_IM_R  |= 0x1; // Enable interrupts for PF4 p.667
-	TIMER2_ICR_R |= 0x1; // Clear the timer interrupt
+	GPIO_PORTF_ICR_R |= 0x1;
+	GPIO_PORTF_IM_R  |= 0x1;
+	TIMER2_ICR_R |= 0x1;
 }
 
 /*Detects SW1 state while debouncing it*/
