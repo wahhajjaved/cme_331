@@ -42,7 +42,7 @@ muj975
 #define GPIO_PORTF_IS_R (*((volatile unsigned long *)0x40025404))	 // p.664
 #define GPIO_PORTF_IEV_R (*((volatile unsigned long *)0x4002540C))	 // p.666
 #define GPIO_PORTF_IM_R (*((volatile unsigned long *)0x40025410))	 // p.667
-#define GPIO_PORTF_IC_R (*((volatile unsigned long *)0x4002541C))	 // p.670
+#define GPIO_PORTF_ICR_R (*((volatile unsigned long *)0x4002541C))	 // p.670
 
 
 
@@ -299,13 +299,13 @@ void init_interrupts(void) {
 	GPIO_PORTF_IS_R  &= ~0x1; // Set to 0 to detect edge p.664
 	GPIO_PORTF_IEV_R &=  ~0x1; // Set to 0 to detect falling edge p.666
 	GPIO_PORTF_IM_R  |=  0x1; // Set to 1 to send interrupts to interrupt controller p.667
-	GPIO_PORTF_IC_R  |= 0x1; // Set to 1 to clear interrupts p.670
+	GPIO_PORTF_ICR_R  |= 0x1; // Set to 1 to clear interrupts p.670
 
 	//Configure interrupts for switch 1 on PF4
 	GPIO_PORTF_IS_R  &= ~(0x1 << 4);
 	GPIO_PORTF_IEV_R |=  0x0 << 4;
 	GPIO_PORTF_IM_R  |=  0x1 << 4;
-	GPIO_PORTF_IC_R  |= 0x1 << 4;
+	GPIO_PORTF_ICR_R  |= 0x1 << 4;
 
 }
 
@@ -368,6 +368,7 @@ int char_to_display_data(char c) {
 				return DISPLAY_SEGMENT_OFF;
 		}
 }
+
 /* ISR for timer 0. Flashes the LED */
 void timer0_handler(void) {
 	if (led_on == 0) {
@@ -388,11 +389,18 @@ void sw1_handler(void) {
 	GPIO_PORTF_IM_R  &= ~(0x1 << 4); //Disable interrupts for PF4 p.667
 	TIMER1_CTL_R |= 0x1; // Enable timer 1
 	change_led_colour();
-	GPIO_PORTF_IC_R  |= 0x1 << 4; // Clear interrupts p.670
+	GPIO_PORTF_ICR_R  |= 0x1 << 4; // Clear interrupts p.670
 }
 
 /* ISR for timer 1. Enables interrupts for SW1. Used for debouncing */
 void timer1_handler(void) {
+	/*	Clear interrupts again before enabling interrupts for the switch
+		The RIS register will have registered button presses due to bouncing
+		so as soon as interrupts are unmasked, the interrupt for sw1 will get
+		triggered. This leads to spurious button presses. See p.655 for details
+	*/
+	GPIO_PORTF_ICR_R  |= 0x1 << 4;
+
 	GPIO_PORTF_IM_R  |= 0x1 << 4; // Enable interrupts for PF4 p.667
 	TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
 }
