@@ -94,13 +94,23 @@ muj975
 #define TIMER3_TAV_R (*((volatile unsigned long *) (0x40033000 + 0x050 ))) // p. 766 Timer value
 #define TIMER3_ICR_R (*((volatile unsigned long *) (0x40033000 + 0x024 ))) // p. 754 Interrupt clear
 
+//Timer 4 for square() profiling
+#define TIMER4_CTL_R (*((volatile unsigned long *) (0x40034000 + 0x00C ))) // p. 737 control
+#define TIMER4_CFG_R (*((volatile unsigned long *) 0x40034000 )) // p. 727 configuration
+#define TIMER4_TAMR_R (*((volatile unsigned long *) (0x40034000 + 0x004 ))) // p. 729 timer mode
+#define TIMER4_IMR_R (*((volatile unsigned long *) (0x40034000 + 0x018 ))) // p. 745 interrupt mask
+#define TIMER4_TAILR_R (*((volatile unsigned long *) (0x40034000 + 0x028 ))) // p. 756 interval load
+#define TIMER4_TAPR_R (*((volatile unsigned long *) (0x40034000 + 0x038 ))) // p. 760 prescale
+#define TIMER4_TAV_R (*((volatile unsigned long *) (0x40034000 + 0x050 ))) // p. 766 Timer value
+#define TIMER4_ICR_R (*((volatile unsigned long *) (0x40034000 + 0x024 ))) // p. 754 Interrupt clear
+
 
 #define CLOCK_FREQUENCY_MS 16000 //16E6 ticks per second to 16000 ticks per ms
 #define LED_TIMER_VALUE CLOCK_FREQUENCY_MS * 500 //blink LEDs at 1Hz
 #define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 30 //30ms clock for debouncing
 #define SSD_TIMER_VALUE CLOCK_FREQUENCY_MS * 1000 //Write to seven segment display at 1Hz
 
-//look up table for the seven segment display
+//look up for the seven segment display
 #define DISPLAY_SEGMENT_OFF 0xFF
 #define DISPLAY_SEGMENT_0 0x81
 #define DISPLAY_SEGMENT_1 0xE7
@@ -113,19 +123,6 @@ muj975
 #define DISPLAY_SEGMENT_8 0x80
 #define DISPLAY_SEGMENT_9 0xE0
 #define DISPLAY_SEGMENT_DOT 0x7F
-const int SSD_LUT[] = {
-	DISPLAY_SEGMENT_0,
-	DISPLAY_SEGMENT_1,
-	DISPLAY_SEGMENT_2,
-	DISPLAY_SEGMENT_3,
-	DISPLAY_SEGMENT_4,
-	DISPLAY_SEGMENT_5,
-	DISPLAY_SEGMENT_6,
-	DISPLAY_SEGMENT_7,
-	DISPLAY_SEGMENT_8,
-	DISPLAY_SEGMENT_9,
-	DISPLAY_SEGMENT_DOT
-};
 
 
 //***************** Function Declarations *********************//
@@ -144,6 +141,8 @@ void sw1_handler(void);
 void timer1_handler(void);
 void timer2_handler(void);
 void timer3_handler(void);
+void time_square(void);
+float square(float x);
 
 //***************** Global Variables *********************//
 char led_colour = 'r';
@@ -161,12 +160,15 @@ int SSD_counter = 0;
 int main(void) {
 	/*** Code here runs only once ***/
 
+	//time_square();
+
 	init_gpio();
 	init_interrupts();
 
 	led_on = 1;
 	set_led(led_colour);
 	write_7_segment_display("0000");
+
 
 
 	/*** Code here repeats forever ***/
@@ -177,7 +179,6 @@ int main(void) {
 //***************** Function Definitions *********************//
 
 void init_gpio(void) {
-	/************* LAB 3 Modified CODE *************/
 
 	volatile unsigned long delay_clk;
 	SYSCTL_RCGC2_R |= 0x00000023; // Enable Clock Gating for Port A, B, and F, p.340
@@ -193,10 +194,6 @@ void init_gpio(void) {
 	GPIO_PORTB_DIR_R |= 0xFF; //set PB[7:0] (DATA[7:0] of display) direction to output
 	GPIO_PORTB_AFSEL_R &= ~0xFF; //disable PB[7:0] (DATA[7:0] of display) alternate functions
 	GPIO_PORTB_PUR_R |= 0xFF;
-
-
-	/************* END LAB 3 Modified CODE *************/
-
 
 
 	GPIO_PORTF_DEN_R |= 0x02; //set PF1 (LED_R) to digital
@@ -241,9 +238,6 @@ void init_gpio(void) {
 	TIMER0_CTL_R |= 0x1;
 
 
-
-	/************* LAB 3 Modified CODE *************/
-
 	/* Timer 1 initialization. Page 722 */
 	TIMER1_CTL_R &= ~0x0;
 	TIMER1_CFG_R  = 0x0;
@@ -268,10 +262,6 @@ void init_gpio(void) {
 	TIMER3_IMR_R = 0x0; // p. 745 interrupt mask
 	TIMER3_TAPR_R = 0x0; // p. 760 prescale
 	TIMER3_CTL_R |= 0x1;
-
-
-	/************* END LAB 3 Modified CODE *************/
-
 
 
 	/*** SW2 Initialization. SW0 is connected to PF0 ***/
@@ -525,4 +515,34 @@ void set_led(char state) {
 			GPIO_PORTF_DATA_R |= 0x08; //Turn on LED_G
 			break;
 	}
+}
+
+
+float square ( float x ) {
+	float p ;
+	p = x * x ;
+	return ( p ) ;
+}
+
+void time_square(void) {
+	volatile unsigned long delay_clk;
+	SYSCTL_RCGC2_R |= 0x00000023; // Enable Clock Gating for Port A, B, and F, p.340
+	SYSCTL_RCGCTIMER_R |= 0x10; // Enable Clock Gating for Timer 4, p.338
+	delay_clk = SYSCTL_RCGC2_R;	  // Dummy operation to wait a few clock cycles
+								  // See p.227 for more information.
+	TIMER4_CTL_R &= ~0x0;
+	TIMER4_CFG_R  = 0x0;
+	TIMER4_TAMR_R |= 0x12;
+	TIMER4_TAILR_R = 4294967295;
+	TIMER4_IMR_R = 0x0;
+	TIMER4_TAPR_R = 0x0;
+	TIMER4_CTL_R |= 0x1;
+
+	int num = 123456789;
+	int start_time = TIMER4_TAV_R;
+	int s = square(num);
+	int end_time = TIMER4_TAV_R;
+
+	int call_time = end_time - start_time;
+	printf("square(%d) takes %d clock cycles to run\n", num, call_time);
 }
