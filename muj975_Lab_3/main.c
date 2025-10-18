@@ -97,8 +97,8 @@ muj975
 
 #define CLOCK_FREQUENCY_MS 16000 //16E6 ticks per second to 16000 ticks per ms
 #define LED_TIMER_VALUE CLOCK_FREQUENCY_MS * 500 //blink LEDs at 1Hz
-#define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 10 //5ms clock for debouncing
-#define SSD_TIMER_VALUE CLOCK_FREQUENCY_MS * 1000 //blink LEDs at 1Hz
+#define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 30 //30ms clock for debouncing
+#define SSD_TIMER_VALUE CLOCK_FREQUENCY_MS * 1000 //Write to seven segment display at 1Hz
 
 //look up table for the seven segment display
 #define DISPLAY_SEGMENT_OFF 0xFF
@@ -154,7 +154,7 @@ int sw2_pressed = 0; // 0 = not pressed, 1 = pressed. sw2 pressed in the last 5 
 
 int led_blinking = 0; //0 means led is not blinking, 1 means led is blinking
 
-int SSD_counting = 0; //0 means paused, 1 means counting
+int SSD_counting = 1; //0 means paused, 1 means counting
 int SSD_counter = 0;
 //***************** Main *********************//
 
@@ -166,7 +166,7 @@ int main(void) {
 
 	led_on = 1;
 	set_led(led_colour);
-	write_7_segment_display("1234");
+	write_7_segment_display("0000");
 
 
 	/*** Code here repeats forever ***/
@@ -251,7 +251,6 @@ void init_gpio(void) {
 	TIMER1_TAILR_R = SW_TIMER_VALUE;
 	TIMER1_IMR_R = 0x0;
 	TIMER1_TAPR_R = 0x0;
-	TIMER1_CTL_R |= 0x1;
 
 	/* Timer 2 initialization. Page 722 */
 	TIMER2_CTL_R &= ~0x0;
@@ -260,7 +259,6 @@ void init_gpio(void) {
 	TIMER2_TAILR_R = SW_TIMER_VALUE;
 	TIMER2_IMR_R = 0x0;
 	TIMER2_TAPR_R = 0x0;
-	TIMER2_CTL_R |= 0x1;
 
 	/* Timer 3 initialization. Page 722 */
 	TIMER3_CTL_R &= ~0x0; // p. 737 control
@@ -295,7 +293,7 @@ void init_interrupts(void) {
 	/* Timer 0A: Vector number = 35, interrupt number = 19, vector address = 0x0000 008C
 		To enable interrupts for timer 0A, bit 19 of EN0 needs to be set
 	*/
-	//NVIC_EN0_R |= 0x1 << 19; // p.142
+	NVIC_EN0_R |= 0x1 << 19; // p.142
 	TIMER0_IMR_R |= 0x1; //Enable time out interrupt mask p.747
 	TIMER0_ICR_R |= 0x1; //write 1 to the TATOCINT to clear the timer interrupt p.755
 
@@ -337,7 +335,7 @@ void init_interrupts(void) {
 Write the given string to the 4 7-segment LED displays.
 output_string must be a null terminated string of size 4 or less
 not counting the null terminator. Currently only supports
-characters '0' - '9' and '.'
+characters '0' - '9', '.', and ' '
 */
 void write_7_segment_display(char *output_string) {
 	volatile int i;
@@ -387,6 +385,8 @@ int char_to_display_data(char c) {
 				return DISPLAY_SEGMENT_9;
 			case '.':
 				return DISPLAY_SEGMENT_DOT;
+			case ' ':
+				return DISPLAY_SEGMENT_OFF;
 			default:
 				return DISPLAY_SEGMENT_OFF;
 		}
@@ -420,17 +420,18 @@ void port_f_handler(void) {
 
 	if (sw1_pressed) {
 
-		GPIO_PORTF_ICR_R |= 0x1 << 4; // Clear interrupts p.670
 		GPIO_PORTF_IM_R &= ~(0x1 << 4); //Disable interrupts for PF4 p.667
-		TIMER1_CTL_R |= 0x1; // Enable timer 1
 		GPIO_PORTF_ICR_R |= 0x1 << 4; // Clear interrupts p.670
+		TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
+		TIMER1_CTL_R |= 0x1; // Enable timer 1
 	}
 
 	if (sw2_pressed) {
-		GPIO_PORTF_IM_R &= ~0x1;
-		TIMER2_CTL_R |= 0x1;
-		printf("SW2 pressed\n");
 		GPIO_PORTF_ICR_R |= 0x1;
+		GPIO_PORTF_IM_R &= ~0x1;
+		TIMER2_ICR_R |= 0x1; // Clear the timer interrupt
+		TIMER2_CTL_R |= 0x1;
+
 	}
 }
 
@@ -452,81 +453,23 @@ void timer2_handler(void) {
 	GPIO_PORTF_ICR_R |= 0x1;
 	GPIO_PORTF_IM_R  |= 0x1;
 	TIMER2_ICR_R |= 0x1;
+	if(SSD_counting == 0)
+	SSD_counting = 1;
+	else
+		SSD_counting = 0;
 }
 
 /* ISR for timer 3. Used for 7-segment display counter */
 void timer3_handler(void) {
+	if (SSD_counting == 0) return;
 	SSD_counter++;
 	if (SSD_counter > 9999) {
 		SSD_counter = 0;
 	}
 	char SSD_counter_str[5];
-	snprintf(SSD_counter_str, 5, "%d", SSD_counter);
+	snprintf(SSD_counter_str, 5, "%4d", SSD_counter);
 	write_7_segment_display(SSD_counter_str);
 	TIMER3_ICR_R |= 0x1;
-}
-
-/*Detects SW1 state while debouncing it*/
-void check_sw1(void) {
-	/*
-	Debouncing Algorithm
-	The first push of the button is considered a press
-	Until the button is released, all signals from the button are ignored
-	After the first button release is detected, a timer is started
-	Until the timer times out, all signals from the button are ignored
-	*/
-
-	//If the timer hasn't timed out yet, then ignore the button
-	if (TIMER1_TAV_R < SW_TIMER_VALUE)
-		return;
-
-	int sw1_state = (GPIO_PORTF_DATA_R >> 4) & 0x01;
-
-	// Initial state. Button is not pressed.
-	//When the button is pressed, the button press is recorded and the SW1 handler is run
-	if (sw1_pressed == 0 && sw1_state == 0) {
-		sw1_pressed = 1;
-		change_led_colour();
-		return;
-	}
-
-	//When the button has been previously pressed, need to detect that it was released
-	//When the button is released, the timer is restarted so all signals from the
-	//button can be ignored until it times out
-	if (sw1_pressed == 1 && sw1_state == 1) {
-		sw1_pressed = 0;
-		TIMER1_TAV_R = 0;
-		return;
-	}
-}
-
-/* Detects SW2 state while debouncing it
-	Same code as check_sw1(), except for sw2
-*/
-void check_sw2(void) {
-
-	if (TIMER2_TAV_R < SW_TIMER_VALUE)
-		return;
-
-	int sw2_state = GPIO_PORTF_DATA_R & 0x01;
-
-	if (sw2_pressed == 0 && sw2_state == 0) {
-		sw2_pressed = 1;
-		if (led_blinking == 0)
-			led_blinking = 1;
-		else
-			led_blinking = 0;
-
-		return;
-	}
-
-	if (sw2_pressed == 1 && sw2_state == 1) {
-		sw2_pressed = 0;
-		TIMER2_TAV_R = 0;
-		return;
-	}
-
-	return;
 }
 
 
@@ -538,7 +481,6 @@ void change_led_colour(void) {
 		led_colour = 'g';
 	else
 		led_colour = 'r';
-
 	if (led_on == 1)
 		set_led(led_colour);
 }
@@ -584,8 +526,3 @@ void set_led(char state) {
 			break;
 	}
 }
-
-
-
-
-
