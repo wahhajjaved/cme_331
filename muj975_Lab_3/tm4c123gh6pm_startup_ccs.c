@@ -55,11 +55,10 @@ extern uint32_t __STACK_TOP;
 //
 //*****************************************************************************
 // To be added by user
-extern void sw1_handler(void);
-extern void sw2_handler(void);
 extern void timer0_handler(void);
 extern void timer1_handler(void);
 extern void timer2_handler(void);
+extern void timer3_handler(void);
 extern void port_f_handler(void);
 //*****************************************************************************
 //
@@ -123,7 +122,7 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // GPIO Port H
     IntDefaultHandler,                      // UART2 Rx and Tx
     IntDefaultHandler,                      // SSI1 Rx and Tx
-    IntDefaultHandler,                      // Timer 3 subtimer A
+    timer3_handler,                      // Timer 3 subtimer A
     IntDefaultHandler,                      // Timer 3 subtimer B
     IntDefaultHandler,                      // I2C1 Master and Slave
     IntDefaultHandler,                      // Quadrature Encoder 1

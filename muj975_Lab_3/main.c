@@ -3,6 +3,8 @@ Wahhaj Javed
 muj975
 */
 
+#include <stdio.h>
+
 /*Code Template For TM4C123 Launchpad*/
 //***************** Mapping Registers *********************//
 #define SYSCTL_RCGC2_R (*((volatile unsigned long *)0x400FE108))
@@ -52,10 +54,10 @@ muj975
 #define SYSCTL_RCGCTIMER_R (*((volatile unsigned long *) (0x400FE000 + 0x604) )) //p. 338
 #define TIMER0_CTL_R (*((volatile unsigned long *) (0x40030000 + 0x00C ))) // p. 737 control
 #define TIMER0_CFG_R (*((volatile unsigned long *) 0x40030000 )) // p. 727 configuration
-#define TIMER0_TAMR_R (*((volatile unsigned long *) (0x40030000 + 0x004 ))) // p. 729 prescale
+#define TIMER0_TAMR_R (*((volatile unsigned long *) (0x40030000 + 0x004 ))) // p. 729 timer mode
 #define TIMER0_IMR_R (*((volatile unsigned long *) (0x40030000 + 0x018 ))) // p. 745 interrupt mask
 #define TIMER0_TAILR_R (*((volatile unsigned long *) (0x40030000 + 0x028 ))) // p. 756 interval load
-#define TIMER0_TAPR_R (*((volatile unsigned long *) (0x40030000 + 0x038 ))) // p. 760 mistake in lab manual. TAPS should be TAPR
+#define TIMER0_TAPR_R (*((volatile unsigned long *) (0x40030000 + 0x038 ))) // p. 760 prescale
 #define TIMER0_TAV_R (*((volatile unsigned long *) (0x40030000 + 0x050 ))) // p. 766 Timer value
 #define TIMER0_RIS_R (*((volatile unsigned long *) (0x40030000 + 0x01C ))) // p. 748 Interrupt values
 #define TIMER0_ICR_R (*((volatile unsigned long *) (0x40030000 + 0x024 ))) // p. 754 Interrupt clear
@@ -63,10 +65,10 @@ muj975
 //Timer 1 for SW1 debounce
 #define TIMER1_CTL_R (*((volatile unsigned long *) (0x40031000 + 0x00C ))) // p. 737 control
 #define TIMER1_CFG_R (*((volatile unsigned long *) 0x40031000 )) // p. 727 configuration
-#define TIMER1_TAMR_R (*((volatile unsigned long *) (0x40031000 + 0x004 ))) // p. 729 prescale
+#define TIMER1_TAMR_R (*((volatile unsigned long *) (0x40031000 + 0x004 ))) // p. 729 timer mode
 #define TIMER1_IMR_R (*((volatile unsigned long *) (0x40031000 + 0x018 ))) // p. 745 interrupt mask
 #define TIMER1_TAILR_R (*((volatile unsigned long *) (0x40031000 + 0x028 ))) // p. 756 interval load
-#define TIMER1_TAPR_R (*((volatile unsigned long *) (0x40031000 + 0x038 ))) // p. 760 mistake in lab manual. TAPS should be TAPR
+#define TIMER1_TAPR_R (*((volatile unsigned long *) (0x40031000 + 0x038 ))) // p. 760 prescale
 #define TIMER1_TAV_R (*((volatile unsigned long *) (0x40031000 + 0x050 ))) // p. 766 Timer value
 #define TIMER1_RIS_R (*((volatile unsigned long *) (0x40031000 + 0x01C ))) // p. 748 Interrupt values
 #define TIMER1_ICR_R (*((volatile unsigned long *) (0x40031000 + 0x024 ))) // p. 754 Interrupt clear
@@ -74,19 +76,29 @@ muj975
 //Timer 2 for SW2 debounce
 #define TIMER2_CTL_R (*((volatile unsigned long *) (0x40032000 + 0x00C ))) // p. 737 control
 #define TIMER2_CFG_R (*((volatile unsigned long *) 0x40032000 )) // p. 727 configuration
-#define TIMER2_TAMR_R (*((volatile unsigned long *) (0x40032000 + 0x004 ))) // p. 729 prescale
+#define TIMER2_TAMR_R (*((volatile unsigned long *) (0x40032000 + 0x004 ))) // p. 729 timer mode
 #define TIMER2_IMR_R (*((volatile unsigned long *) (0x40032000 + 0x018 ))) // p. 745 interrupt mask
 #define TIMER2_TAILR_R (*((volatile unsigned long *) (0x40032000 + 0x028 ))) // p. 756 interval load
-#define TIMER2_TAPR_R (*((volatile unsigned long *) (0x40032000 + 0x038 ))) // p. 760 mistake in lab manual. TAPS should be TAPR
+#define TIMER2_TAPR_R (*((volatile unsigned long *) (0x40032000 + 0x038 ))) // p. 760 prescale
 #define TIMER2_TAV_R (*((volatile unsigned long *) (0x40032000 + 0x050 ))) // p. 766 Timer value
 #define TIMER2_RIS_R (*((volatile unsigned long *) (0x40032000 + 0x01C ))) // p. 748 Interrupt values
 #define TIMER2_ICR_R (*((volatile unsigned long *) (0x40032000 + 0x024 ))) // p. 754 Interrupt clear
 
+//Timer 3 for 7-segment display counter
+#define TIMER3_CTL_R (*((volatile unsigned long *) (0x40033000 + 0x00C ))) // p. 737 control
+#define TIMER3_CFG_R (*((volatile unsigned long *) 0x40033000 )) // p. 727 configuration
+#define TIMER3_TAMR_R (*((volatile unsigned long *) (0x40033000 + 0x004 ))) // p. 729 timer mode
+#define TIMER3_IMR_R (*((volatile unsigned long *) (0x40033000 + 0x018 ))) // p. 745 interrupt mask
+#define TIMER3_TAILR_R (*((volatile unsigned long *) (0x40033000 + 0x028 ))) // p. 756 interval load
+#define TIMER3_TAPR_R (*((volatile unsigned long *) (0x40033000 + 0x038 ))) // p. 760 prescale
+#define TIMER3_TAV_R (*((volatile unsigned long *) (0x40033000 + 0x050 ))) // p. 766 Timer value
+#define TIMER3_ICR_R (*((volatile unsigned long *) (0x40033000 + 0x024 ))) // p. 754 Interrupt clear
 
 
 #define CLOCK_FREQUENCY_MS 16000 //16E6 ticks per second to 16000 ticks per ms
 #define LED_TIMER_VALUE CLOCK_FREQUENCY_MS * 500 //blink LEDs at 1Hz
-#define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 5 //5ms clock for debouncing
+#define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 10 //5ms clock for debouncing
+#define SSD_TIMER_VALUE CLOCK_FREQUENCY_MS * 1000 //blink LEDs at 1Hz
 
 //look up table for the seven segment display
 #define DISPLAY_SEGMENT_OFF 0xFF
@@ -131,6 +143,7 @@ int char_to_display_data(char c);
 void sw1_handler(void);
 void timer1_handler(void);
 void timer2_handler(void);
+void timer3_handler(void);
 
 //***************** Global Variables *********************//
 char led_colour = 'r';
@@ -141,10 +154,13 @@ int sw2_pressed = 0; // 0 = not pressed, 1 = pressed. sw2 pressed in the last 5 
 
 int led_blinking = 0; //0 means led is not blinking, 1 means led is blinking
 
+int SSD_counting = 0; //0 means paused, 1 means counting
+int SSD_counter = 0;
 //***************** Main *********************//
 
 int main(void) {
 	/*** Code here runs only once ***/
+
 	init_gpio();
 	init_interrupts();
 
@@ -152,16 +168,9 @@ int main(void) {
 	set_led(led_colour);
 	write_7_segment_display("1234");
 
+
 	/*** Code here repeats forever ***/
 	while (1) {
-		led_on = 1;
-		set_led(led_colour);
-		// check_sw1();
-		// check_sw2();
-		// if(led_blinking == 0)
-		// 	set_led(led_colour);
-		// else if (TIMER0_RIS_R & 0x1)
-		// 	led_time_out_handler();
 	}
 }
 
@@ -172,7 +181,7 @@ void init_gpio(void) {
 
 	volatile unsigned long delay_clk;
 	SYSCTL_RCGC2_R |= 0x00000023; // Enable Clock Gating for Port A, B, and F, p.340
-	SYSCTL_RCGCTIMER_R |= 0x6F; // Enable Clock Gating for Timers 0, 1, and 2, p.338
+	SYSCTL_RCGCTIMER_R |= 0xF; // Enable Clock Gating for Timers 0, 1, 2, and 3, p.338
 	delay_clk = SYSCTL_RCGC2_R;	  // Dummy operation to wait a few clock cycles
 								  // See p.227 for more information.
 
@@ -253,6 +262,16 @@ void init_gpio(void) {
 	TIMER2_TAPR_R = 0x0;
 	TIMER2_CTL_R |= 0x1;
 
+	/* Timer 3 initialization. Page 722 */
+	TIMER3_CTL_R &= ~0x0; // p. 737 control
+	TIMER3_CFG_R = 0x0; // p. 727 configuration
+	TIMER3_TAMR_R |= 0x12; // preiodic timer counting up p. 729 timer mode.
+	TIMER3_TAILR_R = SSD_TIMER_VALUE; // p. 756 interval load
+	TIMER3_IMR_R = 0x0; // p. 745 interrupt mask
+	TIMER3_TAPR_R = 0x0; // p. 760 prescale
+	TIMER3_CTL_R |= 0x1;
+
+
 	/************* END LAB 3 Modified CODE *************/
 
 
@@ -276,7 +295,7 @@ void init_interrupts(void) {
 	/* Timer 0A: Vector number = 35, interrupt number = 19, vector address = 0x0000 008C
 		To enable interrupts for timer 0A, bit 19 of EN0 needs to be set
 	*/
-	NVIC_EN0_R |= 0x1 << 19; // p.142
+	//NVIC_EN0_R |= 0x1 << 19; // p.142
 	TIMER0_IMR_R |= 0x1; //Enable time out interrupt mask p.747
 	TIMER0_ICR_R |= 0x1; //write 1 to the TATOCINT to clear the timer interrupt p.755
 
@@ -289,6 +308,11 @@ void init_interrupts(void) {
 	NVIC_EN0_R |= 0x1 << 23; // p.142
 	TIMER2_IMR_R |= 0x1; //Enable time out interrupt mask p.747
 	TIMER2_ICR_R |= 0x1; //write 1 to the TATOCINT to clear the timer interrupt p.755
+
+	/* Timer 3A: Vector number = 51, interrupt number = 35 */
+	NVIC_EN1_R |= 0x1 << (35-32); // p.142
+	TIMER3_IMR_R |= 0x1; //Enable time out interrupt mask p.747
+	TIMER3_ICR_R |= 0x1; //write 1 to the TATOCINT to clear the timer interrupt p.755
 
 	/*
 	GPIO Port F: Vector number = 46, interrupt number = 30, vector address = 0x0000 00B8
@@ -308,7 +332,6 @@ void init_interrupts(void) {
 	GPIO_PORTF_ICR_R  |= 0x1 << 4;
 
 }
-
 
 /*
 Write the given string to the 4 7-segment LED displays.
@@ -384,14 +407,6 @@ void timer0_handler(void) {
 
 }
 
-/* ISR for SW1 on PF4*/
-void sw1_handler(void) {
-	GPIO_PORTF_IM_R  &= ~(0x1 << 4); //Disable interrupts for PF4 p.667
-	TIMER1_CTL_R |= 0x1; // Enable timer 1
-	change_led_colour();
-	GPIO_PORTF_ICR_R  |= 0x1 << 4; // Clear interrupts p.670
-}
-
 /* ISR for Port F*/
 void port_f_handler(void) {
 	/*	SW1 and SW2 are connected on port F. Only one IRQ is generated
@@ -404,15 +419,17 @@ void port_f_handler(void) {
 	int sw2_pressed = (GPIO_PORTF_MIS_R >> 0) & 0x1;
 
 	if (sw1_pressed) {
+
+		GPIO_PORTF_ICR_R |= 0x1 << 4; // Clear interrupts p.670
 		GPIO_PORTF_IM_R &= ~(0x1 << 4); //Disable interrupts for PF4 p.667
 		TIMER1_CTL_R |= 0x1; // Enable timer 1
-		change_led_colour();
 		GPIO_PORTF_ICR_R |= 0x1 << 4; // Clear interrupts p.670
 	}
+
 	if (sw2_pressed) {
-		GPIO_PORTF_IM_R  &= ~0x1;
+		GPIO_PORTF_IM_R &= ~0x1;
 		TIMER2_CTL_R |= 0x1;
-		printf("SW2 pressed");
+		printf("SW2 pressed\n");
 		GPIO_PORTF_ICR_R |= 0x1;
 	}
 }
@@ -427,6 +444,7 @@ void timer1_handler(void) {
 	GPIO_PORTF_ICR_R  |= 0x1 << 4;
 	GPIO_PORTF_IM_R  |= 0x1 << 4; // Enable interrupts for PF4 p.667
 	TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
+	change_led_colour();
 }
 
 /* ISR for timer 2. Enables interrupts for SW2. Used for debouncing */
@@ -434,6 +452,18 @@ void timer2_handler(void) {
 	GPIO_PORTF_ICR_R |= 0x1;
 	GPIO_PORTF_IM_R  |= 0x1;
 	TIMER2_ICR_R |= 0x1;
+}
+
+/* ISR for timer 3. Used for 7-segment display counter */
+void timer3_handler(void) {
+	SSD_counter++;
+	if (SSD_counter > 9999) {
+		SSD_counter = 0;
+	}
+	char SSD_counter_str[5];
+	snprintf(SSD_counter_str, 5, "%d", SSD_counter);
+	write_7_segment_display(SSD_counter_str);
+	TIMER3_ICR_R |= 0x1;
 }
 
 /*Detects SW1 state while debouncing it*/
