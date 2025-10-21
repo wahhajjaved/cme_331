@@ -3,6 +3,9 @@ Wahhaj Javed
 muj975
 */
 
+// #define DEBUG
+
+#include "logging.h"
 #include <stdio.h>
 
 /*Code Template For TM4C123 Launchpad*/
@@ -169,6 +172,7 @@ int main(void) {
 	led_on = 1;
 	set_led(led_colour);
 	write_7_segment_display("0000");
+
 
 
 
@@ -407,16 +411,16 @@ void port_f_handler(void) {
 	*/
 	port_f_nesting++;
 	if (port_f_nesting > 1)
-		printf("port_f_handler nested. port_f_nesting = %d\n", port_f_nesting);
+		debug_printf("port_f_handler nested. port_f_nesting = %d\n", port_f_nesting);
 
 	//SW1 connected on PF4 and SW2 on PF0
 	int sw1_pressed = (GPIO_PORTF_MIS_R >> 4) & 0x1;
 	int sw2_pressed = (GPIO_PORTF_MIS_R >> 0) & 0x1;
 
 	if (sw1_pressed) {
-		//printf("1. sw1 pressed\n");
+		debug_printf("1. sw1 pressed\n");
 		if (sw1_ready){
-			// printf("2. sw1 ready\n");
+			debug_printf("2. sw1 ready\n");
 			GPIO_PORTF_IM_R &= ~(0x1 << 4); //Disable interrupts for PF4 p.667
 			change_led_colour();
 			GPIO_PORTF_IM_R |= 0x1 << 4; //enable interrupts for PF4 p.667
@@ -428,7 +432,7 @@ void port_f_handler(void) {
 		TIMER1_TAV_R = 0;
 		TIMER1_CTL_R |= 0x1; // Enable timer 1
 		sw1_ready = 0; //debouncing sw1 so it isnt ready to accept new presses
-		// printf("3. sw1 timer reset\n");
+		debug_printf("3. sw1 timer reset\n");
 	}
 
 	if (sw2_pressed) {
@@ -456,11 +460,11 @@ void timer1_handler(void) {
 	//if timer times out but button is still pressed, then check back later
 	int sw1_state = (GPIO_PORTF_DATA_R >> 4) & 0x01;
 
-	// printf("4. timer1 sw1_state = %d\n", sw1_state);
+	debug_printf("4. timer1 sw1_state = %d\n", sw1_state);
 	if (sw1_state == 0){
 		TIMER1_TAV_R = 0;
 		TIMER1_CTL_R |= 0x1; // Enable timer 1
-		// printf("5. sw1 still down so check back later\n");
+		debug_printf("5. sw1 still down so check back later\n");
 		return;
 	}
 
@@ -470,13 +474,13 @@ void timer1_handler(void) {
 	sw1 is ready to accept new presses
 	*/
 	if (sw1_state == 1 && prev_sw1_state == 1) {
-		// printf("6. sw1 remains unpressed after some time. sw1 ready\n");
+		debug_printf("6. sw1 remains unpressed after some time. sw1 ready\n");
 		sw1_ready = 1;
 		TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
 		return;
 	}
 
-	// printf("7. sw1 released for first time. Check back later\n");
+	debug_printf("7. sw1 released for first time. Check back later\n");
 	prev_sw1_state = sw1_state;
 	TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
 	TIMER1_CTL_R |= 0x1; // Enable timer 1
@@ -589,5 +593,5 @@ void time_square(void) {
 	int end_time = TIMER4_TAV_R;
 
 	int call_time = end_time - start_time;
-	printf("square(%d) takes %d clock cycles to run\n", num, call_time);
+	debug_printf("square(%d) takes %d clock cycles to run\n", num, call_time);
 }
