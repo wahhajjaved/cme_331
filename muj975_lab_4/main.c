@@ -6,28 +6,15 @@ muj975
 // #define DEBUG
 
 #include "logging.h"
-#include <stdio.h>
 #include "tm4c123gh6pm.h"
+#include "helpers.h"
+
+#include <stdio.h>
 
 
-#define CLOCK_FREQUENCY_MS 16000 //16E6 ticks per second to 16000 ticks per ms
 #define LED_TIMER_VALUE CLOCK_FREQUENCY_MS * 500 //blink LEDs at 1Hz
 #define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 10 //30ms clock for debouncing
 #define SSD_TIMER_VALUE CLOCK_FREQUENCY_MS * 1000 //Write to seven segment display at 1Hz
-
-//look up for the seven segment display
-#define DISPLAY_SEGMENT_OFF 0xFF
-#define DISPLAY_SEGMENT_0 0x81
-#define DISPLAY_SEGMENT_1 0xE7
-#define DISPLAY_SEGMENT_2 0x92
-#define DISPLAY_SEGMENT_3 0xC2
-#define DISPLAY_SEGMENT_4 0xE4
-#define DISPLAY_SEGMENT_5 0xC8
-#define DISPLAY_SEGMENT_6 0x8C
-#define DISPLAY_SEGMENT_7 0xE3
-#define DISPLAY_SEGMENT_8 0x80
-#define DISPLAY_SEGMENT_9 0xE0
-#define DISPLAY_SEGMENT_DOT 0x7F
 
 
 //***************** Function Declarations *********************//
@@ -46,8 +33,6 @@ void sw1_handler(void);
 void timer1_handler(void);
 void timer2_handler(void);
 void timer3_handler(void);
-void time_square(void);
-float square(float x);
 
 //***************** Global Variables *********************//
 char led_colour = 'r';
@@ -72,9 +57,6 @@ int main(void) {
 	led_on = 1;
 	set_led(led_colour);
 	write_7_segment_display("0000");
-
-
-
 
 	/*** Code here repeats forever ***/
 	while (1) {

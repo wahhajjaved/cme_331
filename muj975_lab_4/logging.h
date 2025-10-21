@@ -1,5 +1,5 @@
-#ifndef DEBUG_H
-#define DEBUG_H
+#ifndef __DEBUG_H__
+#define __DEBUG_H__
 
 #ifdef DEBUG
 	#include <stdio.h>
@@ -8,4 +8,4 @@
 	#define debug_printf(...) ((void)0)
 #endif
 
-#endif // DEBUG_H
+#endif // __DEBUG_H__
