@@ -148,10 +148,11 @@ float square(float x);
 char led_colour = 'r';
 int led_on = 0; //0 = off, 1 = on
 
+int sw1_ready = 1; // 0 = not ready, 1 = ready to accept next button press
 int sw1_pressed = 0; // 0 = not pressed, 1 = pressed. sw1 pressed in the last 5 ms
 int sw2_pressed = 0; // 0 = not pressed, 1 = pressed. sw2 pressed in the last 5 ms
 
-int led_blinking = 0; //0 means led is not blinking, 1 means led is blinking
+int led_blinking = 1; //0 means led is not blinking, 1 means led is blinking
 
 int SSD_counting = 1; //0 means paused, 1 means counting
 int SSD_counter = 0;
@@ -283,7 +284,7 @@ void init_interrupts(void) {
 	/* Timer 0A: Vector number = 35, interrupt number = 19, vector address = 0x0000 008C
 		To enable interrupts for timer 0A, bit 19 of EN0 needs to be set
 	*/
-	NVIC_EN0_R |= 0x1 << 19; // p.142
+//	NVIC_EN0_R |= 0x1 << 19; // p.142
 	TIMER0_IMR_R |= 0x1; //Enable time out interrupt mask p.747
 	TIMER0_ICR_R |= 0x1; //write 1 to the TATOCINT to clear the timer interrupt p.755
 
@@ -397,23 +398,37 @@ void timer0_handler(void) {
 
 }
 
+int port_f_nesting = 0;
 /* ISR for Port F*/
 void port_f_handler(void) {
 	/*	SW1 and SW2 are connected on port F. Only one IRQ is generated
 		per port so this handler must detect which switch was pressed
 		and call the handlers for that swtich
 	*/
+	port_f_nesting++;
+	if (port_f_nesting > 1)
+		printf("port_f_handler nested. port_f_nesting = %d\n", port_f_nesting);
 
 	//SW1 connected on PF4 and SW2 on PF0
 	int sw1_pressed = (GPIO_PORTF_MIS_R >> 4) & 0x1;
 	int sw2_pressed = (GPIO_PORTF_MIS_R >> 0) & 0x1;
 
 	if (sw1_pressed) {
+		//printf("1. sw1 pressed\n");
+		if (sw1_ready){
+			// printf("2. sw1 ready\n");
+			GPIO_PORTF_IM_R &= ~(0x1 << 4); //Disable interrupts for PF4 p.667
+			change_led_colour();
+			GPIO_PORTF_IM_R |= 0x1 << 4; //enable interrupts for PF4 p.667
+		}
 
-		GPIO_PORTF_IM_R &= ~(0x1 << 4); //Disable interrupts for PF4 p.667
+		//reset the timer back to 0 and mark the switch as not ready
 		GPIO_PORTF_ICR_R |= 0x1 << 4; // Clear interrupts p.670
 		TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
+		TIMER1_TAV_R = 0;
 		TIMER1_CTL_R |= 0x1; // Enable timer 1
+		sw1_ready = 0; //debouncing sw1 so it isnt ready to accept new presses
+		// printf("3. sw1 timer reset\n");
 	}
 
 	if (sw2_pressed) {
@@ -423,19 +438,49 @@ void port_f_handler(void) {
 		TIMER2_CTL_R |= 0x1;
 
 	}
+
+	port_f_nesting--;
 }
 
 /* ISR for timer 1. Enables interrupts for SW1. Used for debouncing */
 void timer1_handler(void) {
-	/*	Clear interrupts again before enabling interrupts for the switch
-		The RIS register will have registered button presses due to bouncing
-		so as soon as interrupts are unmasked, the interrupt for sw1 will get
-		triggered. This leads to spurious button presses. See p.655 for details
+	static int prev_sw1_state = 1; //0 = press, 1 = not pressed
+	/*SW1 is ready to accept the next button press if sw1 has been high
+	for some time. When its bouncing, port_f_handler() will reset this timer
+	so it won't time out and this handler will not be called. When this function is
+	called, the button will have either just been pressed or just released. Both actions
+	will cause bouncing. sw1_ready needs to be set only after the bouncing caused by
+	releasing the button.
 	*/
-	GPIO_PORTF_ICR_R  |= 0x1 << 4;
-	GPIO_PORTF_IM_R  |= 0x1 << 4; // Enable interrupts for PF4 p.667
+
+	//if timer times out but button is still pressed, then check back later
+	int sw1_state = (GPIO_PORTF_DATA_R >> 4) & 0x01;
+
+	// printf("4. timer1 sw1_state = %d\n", sw1_state);
+	if (sw1_state == 0){
+		TIMER1_TAV_R = 0;
+		TIMER1_CTL_R |= 0x1; // Enable timer 1
+		// printf("5. sw1 still down so check back later\n");
+		return;
+	}
+
+	/*if timer times out and button is not pressed, then check back after
+	some time. If the button is still not pressed after some time, then
+	the button has been released and is not bouncing. In this case,
+	sw1 is ready to accept new presses
+	*/
+	if (sw1_state == 1 && prev_sw1_state == 1) {
+		// printf("6. sw1 remains unpressed after some time. sw1 ready\n");
+		sw1_ready = 1;
+		TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
+		return;
+	}
+
+	// printf("7. sw1 released for first time. Check back later\n");
+	prev_sw1_state = sw1_state;
 	TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
-	change_led_colour();
+	TIMER1_CTL_R |= 0x1; // Enable timer 1
+
 }
 
 /* ISR for timer 2. Enables interrupts for SW2. Used for debouncing */
