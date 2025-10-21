@@ -7,110 +7,12 @@ muj975
 
 #include "logging.h"
 #include <stdio.h>
-
-/*Code Template For TM4C123 Launchpad*/
-//***************** Mapping Registers *********************//
-#define SYSCTL_RCGC2_R (*((volatile unsigned long *)0x400FE108))
-// General-Purpose Input/Outputs (GPIOs) p.649
-
-/**** NVIC ****/
-#define NVIC_EN0_R (*((volatile unsigned long *)0xE000E100))
-#define NVIC_EN1_R (*((volatile unsigned long *)0xE000E104))
-#define NVIC_EN2_R (*((volatile unsigned long *)0xE000E108))
-#define NVIC_EN3_R (*((volatile unsigned long *)0xE000E10C))
-#define NVIC_EN4_R (*((volatile unsigned long *)0xE000E110))
-
-
-/**** Port A ****/
-#define GPIO_PORTA_DATA_R (*((volatile unsigned long *)0x400043FC))	 // p.662
-#define GPIO_PORTA_DIR_R (*((volatile unsigned long *)0x40004400))	 // p.663
-#define GPIO_PORTA_AFSEL_R (*((volatile unsigned long *)0x40004420)) // p.671
-#define GPIO_PORTA_DEN_R (*((volatile unsigned long *)0x4000451C))	 // p.682
-#define GPIO_PORTA_PUR_R (*((volatile unsigned long *)0x40004510))	 // p.677
-
-/**** Port B ****/
-#define GPIO_PORTB_DATA_R (*((volatile unsigned long *)0x400053FC))	 // p.662
-#define GPIO_PORTB_DIR_R (*((volatile unsigned long *)0x40005400))	 // p.663
-#define GPIO_PORTB_AFSEL_R (*((volatile unsigned long *)0x40005420)) // p.671
-#define GPIO_PORTB_DEN_R (*((volatile unsigned long *)0x4000551C))	 // p.682
-#define GPIO_PORTB_PUR_R (*((volatile unsigned long *)0x40005510))	 // p.677
-
-/**** Port F ****/
-#define GPIO_PORTF_DATA_R (*((volatile unsigned long *)0x400253FC))	 // p.662
-#define GPIO_PORTF_DIR_R (*((volatile unsigned long *)0x40025400))	 // p.663
-#define GPIO_PORTF_AFSEL_R (*((volatile unsigned long *)0x40025420)) // p.671
-#define GPIO_PORTF_DEN_R (*((volatile unsigned long *)0x4002551C))	 // p.682
-#define GPIO_PORTF_PUR_R (*((volatile unsigned long *)0x40025510))	 // p.677
-#define GPIO_PORTF_LOCK_R (*((volatile unsigned long *)0x40025520))	 // p.684
-#define GPIO_PORTF_CR_R (*((volatile unsigned long *)0x40025524))	 // p.685
-#define GPIO_PORTF_IS_R (*((volatile unsigned long *)0x40025404))	 // p.664
-#define GPIO_PORTF_IEV_R (*((volatile unsigned long *)0x4002540C))	 // p.666
-#define GPIO_PORTF_IM_R (*((volatile unsigned long *)0x40025410))	 // p.667
-#define GPIO_PORTF_MIS_R (*((volatile unsigned long *)0x40025418))	 // p.669
-#define GPIO_PORTF_ICR_R (*((volatile unsigned long *)0x4002541C))	 // p.670
-
-
-
-
-/*** Timers ***/
-//Timer 0 for LED control
-#define SYSCTL_RCGCTIMER_R (*((volatile unsigned long *) (0x400FE000 + 0x604) )) //p. 338
-#define TIMER0_CTL_R (*((volatile unsigned long *) (0x40030000 + 0x00C ))) // p. 737 control
-#define TIMER0_CFG_R (*((volatile unsigned long *) 0x40030000 )) // p. 727 configuration
-#define TIMER0_TAMR_R (*((volatile unsigned long *) (0x40030000 + 0x004 ))) // p. 729 timer mode
-#define TIMER0_IMR_R (*((volatile unsigned long *) (0x40030000 + 0x018 ))) // p. 745 interrupt mask
-#define TIMER0_TAILR_R (*((volatile unsigned long *) (0x40030000 + 0x028 ))) // p. 756 interval load
-#define TIMER0_TAPR_R (*((volatile unsigned long *) (0x40030000 + 0x038 ))) // p. 760 prescale
-#define TIMER0_TAV_R (*((volatile unsigned long *) (0x40030000 + 0x050 ))) // p. 766 Timer value
-#define TIMER0_RIS_R (*((volatile unsigned long *) (0x40030000 + 0x01C ))) // p. 748 Interrupt values
-#define TIMER0_ICR_R (*((volatile unsigned long *) (0x40030000 + 0x024 ))) // p. 754 Interrupt clear
-
-//Timer 1 for SW1 debounce
-#define TIMER1_CTL_R (*((volatile unsigned long *) (0x40031000 + 0x00C ))) // p. 737 control
-#define TIMER1_CFG_R (*((volatile unsigned long *) 0x40031000 )) // p. 727 configuration
-#define TIMER1_TAMR_R (*((volatile unsigned long *) (0x40031000 + 0x004 ))) // p. 729 timer mode
-#define TIMER1_IMR_R (*((volatile unsigned long *) (0x40031000 + 0x018 ))) // p. 745 interrupt mask
-#define TIMER1_TAILR_R (*((volatile unsigned long *) (0x40031000 + 0x028 ))) // p. 756 interval load
-#define TIMER1_TAPR_R (*((volatile unsigned long *) (0x40031000 + 0x038 ))) // p. 760 prescale
-#define TIMER1_TAV_R (*((volatile unsigned long *) (0x40031000 + 0x050 ))) // p. 766 Timer value
-#define TIMER1_RIS_R (*((volatile unsigned long *) (0x40031000 + 0x01C ))) // p. 748 Interrupt values
-#define TIMER1_ICR_R (*((volatile unsigned long *) (0x40031000 + 0x024 ))) // p. 754 Interrupt clear
-
-//Timer 2 for SW2 debounce
-#define TIMER2_CTL_R (*((volatile unsigned long *) (0x40032000 + 0x00C ))) // p. 737 control
-#define TIMER2_CFG_R (*((volatile unsigned long *) 0x40032000 )) // p. 727 configuration
-#define TIMER2_TAMR_R (*((volatile unsigned long *) (0x40032000 + 0x004 ))) // p. 729 timer mode
-#define TIMER2_IMR_R (*((volatile unsigned long *) (0x40032000 + 0x018 ))) // p. 745 interrupt mask
-#define TIMER2_TAILR_R (*((volatile unsigned long *) (0x40032000 + 0x028 ))) // p. 756 interval load
-#define TIMER2_TAPR_R (*((volatile unsigned long *) (0x40032000 + 0x038 ))) // p. 760 prescale
-#define TIMER2_TAV_R (*((volatile unsigned long *) (0x40032000 + 0x050 ))) // p. 766 Timer value
-#define TIMER2_RIS_R (*((volatile unsigned long *) (0x40032000 + 0x01C ))) // p. 748 Interrupt values
-#define TIMER2_ICR_R (*((volatile unsigned long *) (0x40032000 + 0x024 ))) // p. 754 Interrupt clear
-
-//Timer 3 for 7-segment display counter
-#define TIMER3_CTL_R (*((volatile unsigned long *) (0x40033000 + 0x00C ))) // p. 737 control
-#define TIMER3_CFG_R (*((volatile unsigned long *) 0x40033000 )) // p. 727 configuration
-#define TIMER3_TAMR_R (*((volatile unsigned long *) (0x40033000 + 0x004 ))) // p. 729 timer mode
-#define TIMER3_IMR_R (*((volatile unsigned long *) (0x40033000 + 0x018 ))) // p. 745 interrupt mask
-#define TIMER3_TAILR_R (*((volatile unsigned long *) (0x40033000 + 0x028 ))) // p. 756 interval load
-#define TIMER3_TAPR_R (*((volatile unsigned long *) (0x40033000 + 0x038 ))) // p. 760 prescale
-#define TIMER3_TAV_R (*((volatile unsigned long *) (0x40033000 + 0x050 ))) // p. 766 Timer value
-#define TIMER3_ICR_R (*((volatile unsigned long *) (0x40033000 + 0x024 ))) // p. 754 Interrupt clear
-
-//Timer 4 for square() profiling
-#define TIMER4_CTL_R (*((volatile unsigned long *) (0x40034000 + 0x00C ))) // p. 737 control
-#define TIMER4_CFG_R (*((volatile unsigned long *) 0x40034000 )) // p. 727 configuration
-#define TIMER4_TAMR_R (*((volatile unsigned long *) (0x40034000 + 0x004 ))) // p. 729 timer mode
-#define TIMER4_IMR_R (*((volatile unsigned long *) (0x40034000 + 0x018 ))) // p. 745 interrupt mask
-#define TIMER4_TAILR_R (*((volatile unsigned long *) (0x40034000 + 0x028 ))) // p. 756 interval load
-#define TIMER4_TAPR_R (*((volatile unsigned long *) (0x40034000 + 0x038 ))) // p. 760 prescale
-#define TIMER4_TAV_R (*((volatile unsigned long *) (0x40034000 + 0x050 ))) // p. 766 Timer value
-#define TIMER4_ICR_R (*((volatile unsigned long *) (0x40034000 + 0x024 ))) // p. 754 Interrupt clear
+#include "tm4c123gh6pm.h"
 
 
 #define CLOCK_FREQUENCY_MS 16000 //16E6 ticks per second to 16000 ticks per ms
 #define LED_TIMER_VALUE CLOCK_FREQUENCY_MS * 500 //blink LEDs at 1Hz
-#define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 30 //30ms clock for debouncing
+#define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 10 //30ms clock for debouncing
 #define SSD_TIMER_VALUE CLOCK_FREQUENCY_MS * 1000 //Write to seven segment display at 1Hz
 
 //look up for the seven segment display
@@ -163,8 +65,6 @@ int SSD_counter = 0;
 
 int main(void) {
 	/*** Code here runs only once ***/
-
-	//time_square();
 
 	init_gpio();
 	init_interrupts();
@@ -564,34 +464,4 @@ void set_led(char state) {
 			GPIO_PORTF_DATA_R |= 0x08; //Turn on LED_G
 			break;
 	}
-}
-
-
-float square ( float x ) {
-	float p ;
-	p = x * x ;
-	return ( p ) ;
-}
-
-void time_square(void) {
-	volatile unsigned long delay_clk;
-	SYSCTL_RCGC2_R |= 0x00000023; // Enable Clock Gating for Port A, B, and F, p.340
-	SYSCTL_RCGCTIMER_R |= 0x10; // Enable Clock Gating for Timer 4, p.338
-	delay_clk = SYSCTL_RCGC2_R;	  // Dummy operation to wait a few clock cycles
-								  // See p.227 for more information.
-	TIMER4_CTL_R &= ~0x0;
-	TIMER4_CFG_R  = 0x0;
-	TIMER4_TAMR_R |= 0x12;
-	TIMER4_TAILR_R = 4294967295;
-	TIMER4_IMR_R = 0x0;
-	TIMER4_TAPR_R = 0x0;
-	TIMER4_CTL_R |= 0x1;
-
-	int num = 123456789;
-	int start_time = TIMER4_TAV_R;
-	int s = square(num);
-	int end_time = TIMER4_TAV_R;
-
-	int call_time = end_time - start_time;
-	debug_printf("square(%d) takes %d clock cycles to run\n", num, call_time);
 }
