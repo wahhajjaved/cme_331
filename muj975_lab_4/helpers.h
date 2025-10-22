@@ -20,4 +20,23 @@
 #define DISPLAY_SEGMENT_DOT 0x7F
 
 
+/*
+* state = 'o' --> off
+* state = 'r' --> red led on
+* state = 'g' --> green led on
+* state = 'b' --> blue led on
+* state = 'w' --> white led on
+*/
+void set_led(char state);
+
+/*
+Write the given string to the 4 7-segment LED displays.
+output_string must be a null terminated string of size 4 or less
+not counting the null terminator. Currently only supports
+characters '0' - '9', '.', and ' '
+*/
+void write_7_segment_display(char *output_string);
+
+
+
 #endif //__HELPERS_H__
