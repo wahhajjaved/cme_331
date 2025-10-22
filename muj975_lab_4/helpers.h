@@ -36,7 +36,6 @@ not counting the null terminator. Currently only supports
 characters '0' - '9', '.', and ' '
 */
 void write_7_segment_display(char *output_string);
-
-
+int char_to_display_data(char c);
 
 #endif //__HELPERS_H__

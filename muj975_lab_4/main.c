@@ -3,7 +3,7 @@ Wahhaj Javed
 muj975
 */
 
-// #define DEBUG
+//#define DEBUG
 
 #include "logging.h"
 #include "tm4c123gh6pm.h"
@@ -14,7 +14,7 @@ muj975
 
 #define LED_TIMER_VALUE CLOCK_FREQUENCY_MS * 500 //blink LEDs at 1Hz
 #define SW_TIMER_VALUE CLOCK_FREQUENCY_MS * 30 //30ms clock for debouncing
-#define SSD_TIMER_VALUE CLOCK_FREQUENCY_MS * 1000 //Write to seven segment display at 1Hz
+#define SSD_TIMER_VALUE CLOCK_FREQUENCY_MS * 500 //Write to seven segment display at 1Hz
 
 
 //***************** Function Declarations *********************//
@@ -26,12 +26,13 @@ void timer1_handler(void);
 void timer2_handler(void);
 void timer3_handler(void);
 void change_led_colour(void);
-
+void toggle_ssd_counter(void);
 //***************** Global Variables *********************//
 char led_colour = 'r';
 int led_on = 0; //0 = off, 1 = on
 
 int sw1_ready = 1; // 0 = not ready, 1 = ready to accept next button press
+int sw2_ready = 1; // 0 = not ready, 1 = ready to accept next button press
 int sw1_pressed = 0; // 0 = not pressed, 1 = pressed. sw1 pressed in the last 5 ms
 int sw2_pressed = 0; // 0 = not pressed, 1 = pressed. sw2 pressed in the last 5 ms
 
@@ -121,7 +122,7 @@ void init_gpio(void) {
 	/* Timer 1 initialization. Page 722 */
 	TIMER1_CTL_R &= ~0x0;
 	TIMER1_CFG_R  = 0x0;
-	TIMER1_TAMR_R |= 0x11; //0x1 in bit field 1:0 for one shot mode and 0x1 in bit field 4 to count up. 0001 0001
+	TIMER1_TAMR_R |= 0x12; //0x2 in bit field 1:0 for one shot mode and 0x1 in bit field 4 to count up. 0001 0001
 	TIMER1_TAILR_R = SW_TIMER_VALUE;
 	TIMER1_IMR_R = 0x0;
 	TIMER1_TAPR_R = 0x0;
@@ -129,7 +130,7 @@ void init_gpio(void) {
 	/* Timer 2 initialization. Page 722 */
 	TIMER2_CTL_R &= ~0x0;
 	TIMER2_CFG_R  = 0x0;
-	TIMER2_TAMR_R |= 0x11; //0x1 in bit field 1:0 for one shot mode and 0x1 in bit field 4 to count up. 0001 0001
+	TIMER2_TAMR_R |= 0x12; //0x1 in bit field 1:0 for one shot mode and 0x1 in bit field 4 to count up. 0001 0001
 	TIMER2_TAILR_R = SW_TIMER_VALUE;
 	TIMER2_IMR_R = 0x0;
 	TIMER2_TAPR_R = 0x0;
@@ -251,11 +252,17 @@ void port_f_handler(void) {
 	}
 
 	if (sw2_pressed) {
-		GPIO_PORTF_ICR_R |= 0x1;
-		GPIO_PORTF_IM_R &= ~0x1;
-		TIMER2_ICR_R |= 0x1; // Clear the timer interrupt
-		TIMER2_CTL_R |= 0x1;
+		if (sw2_ready){
+			GPIO_PORTF_IM_R &= ~0x1; //Disable interrupts for PF0 p.667
+			toggle_ssd_counter();
+			GPIO_PORTF_IM_R |= 0x1; //enable interrupts for PF0 p.667
+		}
 
+		GPIO_PORTF_ICR_R |= 0x1;
+		TIMER2_ICR_R |= 0x1; // Clear the timer interrupt
+		TIMER2_TAV_R = 0;
+		TIMER2_CTL_R |= 0x1;
+		sw2_ready = 0;
 	}
 
 	port_f_nesting--;
@@ -264,22 +271,22 @@ void port_f_handler(void) {
 /* ISR for timer 1. Enables interrupts for SW1. Used for debouncing */
 void timer1_handler(void) {
 	static int prev_sw1_state = 1; //0 = press, 1 = not pressed
+
 	/*SW1 is ready to accept the next button press if sw1 has been high
 	for some time. When its bouncing, port_f_handler() will reset this timer
 	so it won't time out and this handler will not be called. When this function is
 	called, the button will have either just been pressed or just released. Both actions
 	will cause bouncing. sw1_ready needs to be set only after the bouncing caused by
-	releasing the button.
+	releasing the button is over.
 	*/
 
-	//if timer times out but button is still pressed, then check back later
 	int sw1_state = (GPIO_PORTF_DATA_R >> 4) & 0x01;
+	debug_printf("4. timer1 sw1_state = %d, TIMER1_TAV_R = %d\n", sw1_state, TIMER1_TAV_R);
 
-	debug_printf("4. timer1 sw1_state = %d\n", sw1_state);
+	//if timer times out but button is still pressed, then check back later
 	if (sw1_state == 0){
-		TIMER1_TAV_R = 0;
-		TIMER1_CTL_R |= 0x1; // Enable timer 1
-		debug_printf("5. sw1 still down so check back later\n");
+		TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
+		debug_printf("5. sw1 still down so check back later, TIMER1_TAV_R = %d\n", TIMER1_TAV_R);
 		return;
 	}
 
@@ -289,28 +296,48 @@ void timer1_handler(void) {
 	sw1 is ready to accept new presses
 	*/
 	if (sw1_state == 1 && prev_sw1_state == 1) {
-		debug_printf("6. sw1 remains unpressed after some time. sw1 ready\n");
+		debug_printf("6. sw1 remains unpressed after some time. sw1 ready. TIMER1_TAV_R = %d\n", TIMER1_TAV_R);
 		sw1_ready = 1;
+		prev_sw1_state = 0;
 		TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
+		TIMER1_CTL_R &= ~0x1; // Disable timer 1
 		return;
 	}
 
 	debug_printf("7. sw1 released for first time. Check back later\n");
 	prev_sw1_state = sw1_state;
 	TIMER1_ICR_R |= 0x1; // Clear the timer interrupt
-	TIMER1_CTL_R |= 0x1; // Enable timer 1
 
 }
 
 /* ISR for timer 2. Enables interrupts for SW2. Used for debouncing */
 void timer2_handler(void) {
-	GPIO_PORTF_ICR_R |= 0x1;
-	GPIO_PORTF_IM_R  |= 0x1;
-	TIMER2_ICR_R |= 0x1;
-	if(SSD_counting == 0)
-	SSD_counting = 1;
-	else
-		SSD_counting = 0;
+	static int prev_sw2_state = 1; //0 = press, 1 = not pressed
+
+	int sw2_state = GPIO_PORTF_DATA_R & 0x01;
+
+	//if timer times out but button is still pressed, then check back later
+	if (sw2_state == 0){
+		TIMER2_ICR_R |= 0x1; // Clear the timer interrupt
+		return;
+	}
+
+	/*if timer times out and button is not pressed, then check back after
+	some time. If the button is still not pressed after some time, then
+	the button has been released and is not bouncing. In this case,
+	sw1 is ready to accept new presses
+	*/
+	if (sw2_state == 1 && prev_sw2_state == 1) {
+		sw2_ready = 1;
+		prev_sw2_state = 0;
+		TIMER2_ICR_R |= 0x1; // Clear the timer interrupt
+		TIMER2_CTL_R &= ~0x1; // Disable timer 2
+		return;
+	}
+
+	prev_sw2_state = sw2_state;
+	TIMER2_ICR_R |= 0x1; // Clear the timer interrupt
+
 }
 
 /* ISR for timer 3. Used for 7-segment display counter */
@@ -339,3 +366,17 @@ void change_led_colour(void) {
 		set_led(led_colour);
 }
 
+void toggle_ssd_counter(void) {
+	if(SSD_counting == 0) {
+		SSD_counting = 1;
+		//when starting to count, enable timer 3 and reset it
+		TIMER3_ICR_R |= 0x1; //clear interrupts
+		TIMER3_TAV_R = 0;
+		TIMER3_CTL_R |= 0x1; // enable timer 3
+	}
+	else {
+		SSD_counting = 0;
+		//when not counting, turn of timer 3
+		TIMER3_CTL_R &= ~0x1; // Disable timer 3
+	}
+}
